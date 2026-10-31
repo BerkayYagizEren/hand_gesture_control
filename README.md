@@ -30,7 +30,6 @@ Built with **MediaPipe Tasks API**, **Native macOS Quartz Events (PyObjC)**, **O
 
 ```text
 hand_gesture_control/
-├── CLAUDE.md                   # Architecture standards & verification protocols
 ├── pyproject.toml              # Build & test configurations
 ├── requirements.txt            # Pinned dependency manifest
 ├── models/
