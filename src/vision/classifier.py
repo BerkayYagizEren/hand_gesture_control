@@ -16,7 +16,7 @@ from src.vision.geometry import (
     pinch_ratio,
 )
 
-PINCH_START_RATIO = 0.25
+PINCH_START_RATIO = 0.55
 # Thumb direction's upward component (image y is down); 0.7 is about 45 degrees off vertical.
 THUMBS_UP_MIN_COMPONENT = 0.7
 
@@ -66,8 +66,12 @@ class PoseClassifier:
             return Pose.FIST
 
         # Pinch detection: when not a full fist, distance between tips defines the pinch.
-        is_pinch = index_ratio < self.pinch_start_ratio
-        is_middle_pinch = middle_ratio < self.pinch_start_ratio
+        is_pinch = index_ratio < self.pinch_start_ratio and (
+            states[Finger.INDEX] is not FingerState.CURLED
+        )
+        is_middle_pinch = middle_ratio < self.pinch_start_ratio and (
+            states[Finger.MIDDLE] is not FingerState.CURLED
+        )
         if is_pinch and is_middle_pinch:
             return Pose.PINCH if index_ratio <= middle_ratio else Pose.MIDDLE_PINCH
         if is_pinch:

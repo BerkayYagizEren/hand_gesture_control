@@ -46,7 +46,7 @@ class GestureState(Enum):
 @dataclass(frozen=True)
 class GestureConfig:
     pinch_start_ratio: float = PINCH_START_RATIO
-    pinch_release_ratio: float = 0.40
+    pinch_release_ratio: float = 0.70
     # Consecutive frames past the release ratio, so one noisy frame cannot drop a drag.
     release_frames: int = 2
     drag_hold_ms: float = 250.0

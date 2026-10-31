@@ -118,9 +118,15 @@ def test_click_does_not_slide_under_small_hand_jitter():
 
 def test_hysteresis_keeps_pinch_between_the_thresholds():
     rig = Rig().pinching()
-    assert rig.frames(5, Pose.UNKNOWN, pinch=0.39) is GestureState.PINCH_ACTIVE
+    assert (
+        rig.frames(5, Pose.UNKNOWN, pinch=rig.fsm.config.pinch_release_ratio - 0.02)
+        is GestureState.PINCH_ACTIVE
+    )
     assert rig.mouse.held_buttons == {MouseButton.LEFT}
-    assert rig.frames(2, Pose.UNKNOWN, pinch=0.41) is GestureState.COOLDOWN
+    assert (
+        rig.frames(2, Pose.UNKNOWN, pinch=rig.fsm.config.pinch_release_ratio + 0.02)
+        is GestureState.COOLDOWN
+    )
     assert rig.mouse.held_buttons == frozenset()
 
 
@@ -133,7 +139,7 @@ def test_single_frame_ratio_spike_does_not_release():
 
 def test_ratio_between_thresholds_does_not_start_a_pinch():
     rig = Rig().tracking()
-    assert rig.frames(5, Pose.PINCH, pinch=0.3) is GestureState.TRACKING
+    assert rig.frames(5, Pose.PINCH, pinch=0.60) is GestureState.TRACKING
     assert rig.mouse.held_buttons == frozenset()
 
 
@@ -226,7 +232,7 @@ def test_right_click_press_and_release():
     assert rig.frames(3, Pose.MIDDLE_PINCH, middle=0.1) is GestureState.RIGHT_CLICK_ACTIVE
     assert rig.mouse.held_buttons == {MouseButton.RIGHT}
     assert rig.frames(5, Pose.MIDDLE_PINCH, middle=0.39) is GestureState.RIGHT_CLICK_ACTIVE
-    assert rig.frames(2, Pose.UNKNOWN, middle=0.5) is GestureState.COOLDOWN
+    assert rig.frames(2, Pose.UNKNOWN, middle=0.75) is GestureState.COOLDOWN
     assert rig.button_events() == [MouseEventType.RIGHT_DOWN, MouseEventType.RIGHT_UP]
 
 

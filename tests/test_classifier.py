@@ -3,7 +3,7 @@ import math
 import pytest
 
 from hand_factory import CURLED, PARTIAL, POSES, THUMB_LATERAL, THUMB_TUCKED, make_hand, world_points
-from src.vision.classifier import Pose, PoseClassifier, TemporalVotingFilter
+from src.vision.classifier import PINCH_START_RATIO, Pose, PoseClassifier, TemporalVotingFilter
 from src.vision.detector import NUM_LANDMARKS, HandLandmark, Landmark
 
 classifier = PoseClassifier()
@@ -37,8 +37,8 @@ def test_observation_carries_the_raw_ratios():
 
 
 def test_pinch_threshold():
-    assert classify(world_points(index=PARTIAL, pinch=0.24)) is Pose.PINCH
-    assert classify(world_points(index=PARTIAL, pinch=0.26)) is not Pose.PINCH
+    assert classify(world_points(index=PARTIAL, pinch=PINCH_START_RATIO - 0.02)) is Pose.PINCH
+    assert classify(world_points(index=PARTIAL, pinch=PINCH_START_RATIO + 0.02)) is not Pose.PINCH
 
 
 def test_pinch_threshold_is_configurable():
