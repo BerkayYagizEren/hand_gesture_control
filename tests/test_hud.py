@@ -5,6 +5,7 @@ from hand_factory import POSES, make_hand
 from src.ui.hud import (
     COLOR_ANCHOR,
     HAND_CONNECTIONS,
+    MODE_COLORS,
     PANEL_ORIGIN,
     PANEL_SIZE,
     RING_COLORS,
@@ -129,6 +130,43 @@ def test_panel_reflects_status_fields(fields):
     baseline = HUDVisualizer().draw(blank(), None, STATUS)
     image = HUDVisualizer().draw(blank(), None, changed)
     assert np.any(image != baseline)
+
+
+def switching(progress, next_mode="MEDIA"):
+    return HudStatus(**{**STATUS.__dict__, "mode_progress": progress, "next_mode": next_mode})
+
+
+def count_color(image, color):
+    return int(np.count_nonzero(np.all(image == np.array(color, np.uint8), axis=2)))
+
+
+def test_no_mode_progress_without_a_hold():
+    plain = HUDVisualizer().draw(blank(), None, STATUS)
+    idle = HUDVisualizer().draw(blank(), None, switching(0.0))
+    assert np.array_equal(plain, idle)
+    assert not has_color(idle, MODE_COLORS["MEDIA"])
+
+
+@pytest.mark.parametrize("next_mode", ["MOUSE", "PRESENTATION", "MEDIA"])
+def test_mode_progress_is_drawn_in_the_next_modes_color_inside_the_panel(next_mode):
+    image = HUDVisualizer().draw(blank(), None, switching(0.5, next_mode))
+    assert has_color(image, MODE_COLORS[next_mode])
+    assert not outside_panel(image).any()
+
+
+def test_mode_progress_fill_grows_with_the_hold():
+    color = MODE_COLORS["MEDIA"]
+    filled = [
+        count_color(HUDVisualizer().draw(blank(), None, switching(progress)), color)
+        for progress in (0.1, 0.5, 1.0)
+    ]
+    assert filled == sorted(set(filled))
+
+
+def test_mode_progress_stays_inside_the_panel_when_over_full():
+    over = HUDVisualizer().draw(blank(), None, switching(2.0))
+    full = HUDVisualizer().draw(blank(), None, switching(1.0))
+    assert np.array_equal(over, full)
 
 
 def test_non_finite_landmarks_are_skipped():

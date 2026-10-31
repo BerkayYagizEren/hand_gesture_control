@@ -2,7 +2,16 @@ import math
 
 import pytest
 
-from hand_factory import CURLED, PARTIAL, POSES, THUMB_LATERAL, THUMB_TUCKED, make_hand, world_points
+from hand_factory import (
+    CURLED,
+    PARTIAL,
+    POSES,
+    THUMB_LATERAL,
+    THUMB_OUT,
+    THUMB_TUCKED,
+    make_hand,
+    world_points,
+)
 from src.vision.classifier import PINCH_START_RATIO, Pose, PoseClassifier, TemporalVotingFilter
 from src.vision.detector import NUM_LANDMARKS, HandLandmark, Landmark
 
@@ -24,6 +33,7 @@ def classify(world):
         ("TWO_FINGER", Pose.TWO_FINGER),
         ("OPEN_PALM", Pose.OPEN_PALM),
         ("THUMBS_UP", Pose.THUMBS_UP),
+        ("THREE_FINGER", Pose.THREE_FINGER),
     ],
 )
 def test_each_pose(name, pose):
@@ -96,6 +106,22 @@ def test_partially_curled_neighbours_still_count_as_pointing():
 
 def test_non_adjacent_fingers_are_unknown():
     assert classify(world_points(middle=CURLED, ring=CURLED, thumb=THUMB_TUCKED)) is Pose.UNKNOWN
+
+
+@pytest.mark.parametrize("pinky", [CURLED, PARTIAL])
+@pytest.mark.parametrize("thumb", [THUMB_TUCKED, THUMB_OUT])
+def test_three_finger_allows_any_thumb_and_a_pinky_that_is_not_extended(pinky, thumb):
+    assert classify(world_points(pinky=pinky, thumb=thumb)) is Pose.THREE_FINGER
+
+
+def test_extended_pinky_is_not_three_finger():
+    assert classify(world_points(thumb=THUMB_TUCKED)) is not Pose.THREE_FINGER
+
+
+@pytest.mark.parametrize("bent", ["index", "middle", "ring"])
+def test_three_finger_needs_index_middle_and_ring(bent):
+    fingers = {"pinky": CURLED, "thumb": THUMB_TUCKED, bent: CURLED}
+    assert classify(world_points(**fingers)) is not Pose.THREE_FINGER
 
 
 def test_degenerate_hand_is_unknown():

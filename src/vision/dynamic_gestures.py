@@ -1,4 +1,4 @@
-"""Detects left and right hand swipes from voted poses and hand motion.
+"""Detects hand swipes in four directions from voted poses and hand motion.
 
 DISARMED -> ARMED -> (swipe) -> COOLDOWN -> DISARMED
 
@@ -22,6 +22,8 @@ from src.vision.detector import HandLandmark, Landmark
 class SwipeDirection(Enum):
     LEFT = auto()
     RIGHT = auto()
+    UP = auto()
+    DOWN = auto()
 
 
 class SwipePhase(Enum):
@@ -36,7 +38,7 @@ class SwipeConfig:
     # Distances are in image heights, speeds in image heights per second.
     min_distance: float = 0.15
     min_speed: float = 0.8
-    # |dx| must exceed this many times |dy|, which rejects diagonal motion.
+    # The longer axis must exceed this many times the shorter, which rejects diagonal motion.
     dominance_ratio: float = 2.0
     window_seconds: float = 0.35  # A swipe must fit in this long.
     cooldown_seconds: float = 0.6
@@ -88,8 +90,8 @@ class SwipeDetector:
 
         `pose` should be the voted pose, since motion blur breaks single-frame poses
         mid-swipe. `landmarks` come from a mirrored image, so image +x is the user's
-        right. `aspect_ratio` (`DetectionResult.aspect_ratio`) makes both axes the
-        same scale. `timestamp` is in seconds and must strictly increase.
+        right, and image y grows downward. `aspect_ratio`
+        (`DetectionResult.aspect_ratio`) makes both axes the same scale. `timestamp` is in seconds and must strictly increase.
         """
         anchor = landmarks[HandLandmark.INDEX_FINGER_MCP]
         x, y = anchor.x * aspect_ratio, anchor.y
@@ -132,18 +134,21 @@ class SwipeDetector:
             self._history.popleft()
 
         # Every start point is tried, so a swipe that follows a pause or a stray
-        # vertical motion inside the window is still judged on its own stroke.
+        # motion on the other axis inside the window is still judged on its own stroke.
         for start_time, start_x, start_y in self._history:
             dx, dy = x - start_x, y - start_y
+            major, minor = max(abs(dx), abs(dy)), min(abs(dx), abs(dy))
             if (
-                abs(dx) >= self.config.min_distance
-                and abs(dx) > self.config.dominance_ratio * abs(dy)
-                and abs(dx) / (timestamp - start_time) >= self.config.min_speed
+                major >= self.config.min_distance
+                and major > self.config.dominance_ratio * minor
+                and major / (timestamp - start_time) >= self.config.min_speed
             ):
                 self._history.clear()
                 self._phase = SwipePhase.COOLDOWN
                 self._cooldown_until = timestamp + self.config.cooldown_seconds
-                return SwipeDirection.RIGHT if dx > 0 else SwipeDirection.LEFT
+                if abs(dx) > abs(dy):
+                    return SwipeDirection.RIGHT if dx > 0 else SwipeDirection.LEFT
+                return SwipeDirection.UP if dy < 0 else SwipeDirection.DOWN
 
         self._history.append((timestamp, x, y))
         return None

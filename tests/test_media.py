@@ -15,6 +15,8 @@ ACTIONS = [
     ("volume_down", MediaKey.VOLUME_DOWN, 1),
     ("mute", MediaKey.MUTE, 7),
     ("play_pause", MediaKey.PLAY_PAUSE, 16),
+    ("next_track", MediaKey.NEXT_TRACK, 17),
+    ("prev_track", MediaKey.PREV_TRACK, 18),
 ]
 
 

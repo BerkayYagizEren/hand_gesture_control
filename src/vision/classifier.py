@@ -30,6 +30,7 @@ class Pose(Enum):
     TWO_FINGER = auto()
     OPEN_PALM = auto()
     THUMBS_UP = auto()
+    THREE_FINGER = auto()  # Held to switch modes.
 
 
 @dataclass(frozen=True)
@@ -85,12 +86,14 @@ class PoseClassifier:
 
         if extended == set(Finger):
             return Pose.OPEN_PALM
-        # The thumb is free in the next two, as a relaxed pointing hand often leaves it out.
+        # The thumb is free in the next three, as a relaxed pointing hand often leaves it out.
         pointing_fingers = extended - {Finger.THUMB}
         if pointing_fingers == {Finger.INDEX}:
             return Pose.POINTING
         if pointing_fingers == {Finger.INDEX, Finger.MIDDLE}:
             return Pose.TWO_FINGER
+        if pointing_fingers == {Finger.INDEX, Finger.MIDDLE, Finger.RING}:
+            return Pose.THREE_FINGER
         return Pose.UNKNOWN
 
 

@@ -264,13 +264,40 @@ def test_presentation_mode_ignores_pinches(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "direction, action, key",
-    [(1, "volume_up", MediaKey.VOLUME_UP), (-1, "volume_down", MediaKey.VOLUME_DOWN)],
+    "start, stop, action, key",
+    [
+        ((0.3, 0.5), (0.7, 0.5), "next_track", MediaKey.NEXT_TRACK),
+        ((0.7, 0.5), (0.3, 0.5), "prev_track", MediaKey.PREV_TRACK),
+        ((0.5, 0.7), (0.5, 0.3), "volume_up", MediaKey.VOLUME_UP),
+        ((0.5, 0.3), (0.5, 0.7), "volume_down", MediaKey.VOLUME_DOWN),
+    ],
 )
-def test_media_swipe_changes_volume(tmp_path, direction, action, key):
-    app = replay_app(swipe_session(direction).save(tmp_path / "volume.jsonl"), AppMode.MEDIA)
+def test_media_swipe_in_each_direction_fires_its_action(tmp_path, start, stop, action, key):
+    script = Script().hold("OPEN_PALM", 12, *start).move("OPEN_PALM", 8, start, stop)
+    app = replay_app(script.save(tmp_path / "media.jsonl"), AppMode.MEDIA)
     assert app.run().actions == {action: 1}
     assert [event.key for event in app.media.events] == [key, key]
+
+
+def test_media_volume_return_movement_does_not_fire_the_opposite_action():
+    up, down = (0.5, 0.7), (0.5, 0.3)
+    script = (
+        Script()
+        .hold("OPEN_PALM", 12, *up)
+        .move("OPEN_PALM", 8, up, down)
+        .move("OPEN_PALM", 8, down, up)
+        .move("OPEN_PALM", 8, up, down)
+        .move("OPEN_PALM", 8, down, up)
+    )
+    assert make_app(ListSource(script.ticks()), AppMode.MEDIA).run().actions == {"volume_up": 1}
+
+
+def test_presentation_ignores_vertical_swipes():
+    up, down = (0.5, 0.7), (0.5, 0.3)
+    script = Script().hold("OPEN_PALM", 12, *up).move("OPEN_PALM", 8, up, down)
+    app = make_app(ListSource(script.ticks()), AppMode.PRESENTATION)
+    assert app.run().actions == {}
+    assert app.presentation._post_event.events == []
 
 
 def test_media_thumbs_up_toggles_play_pause_once_per_gesture(tmp_path):
@@ -322,6 +349,131 @@ def test_m_key_cycles_through_the_modes():
     app.set_mode = spy
     app.run()
     assert seen == [AppMode.PRESENTATION, AppMode.MEDIA, AppMode.MOUSE]
+
+
+# Three finger mode switching
+
+
+def run_session(script, mode=AppMode.MOUSE):
+    app = make_app(ListSource(script.ticks()), mode)
+    app.run()
+    return app
+
+
+@pytest.mark.parametrize(
+    "start, expected",
+    [
+        (AppMode.MOUSE, AppMode.PRESENTATION),
+        (AppMode.PRESENTATION, AppMode.MEDIA),
+        (AppMode.MEDIA, AppMode.MOUSE),
+    ],
+)
+def test_three_finger_hold_moves_to_the_next_mode(start, expected):
+    assert run_session(Script().hold("THREE_FINGER", 25), start).mode is expected
+
+
+def test_three_finger_hold_fires_at_half_a_second_not_before():
+    # The vote needs 3 frames, then 16 frames of 33 ms are the first to reach 500 ms.
+    assert run_session(Script().hold("THREE_FINGER", 18)).mode is AppMode.MOUSE
+    assert run_session(Script().hold("THREE_FINGER", 19)).mode is AppMode.PRESENTATION
+
+
+def test_long_three_finger_hold_is_a_single_switch():
+    # Across the switch's reset of the mode's own vote, the latch must not let go.
+    assert run_session(Script().hold("THREE_FINGER", 120)).mode is AppMode.PRESENTATION
+
+
+def test_leaving_the_pose_allows_the_next_switch():
+    script = Script()
+    for _ in range(3):
+        script.hold("THREE_FINGER", 25).hold("POINTING", 5)
+    assert run_session(script).mode is AppMode.MOUSE  # The whole cycle, back to the start.
+
+
+def test_leaving_the_pose_early_cancels_the_hold():
+    script = Script().hold("THREE_FINGER", 12).hold("POINTING", 5).hold("THREE_FINGER", 12)
+    assert run_session(script).mode is AppMode.MOUSE
+
+
+def test_a_one_frame_glitch_does_not_cancel_the_hold():
+    script = Script().hold("THREE_FINGER", 12).hand("FIST").hold("THREE_FINGER", 10)
+    assert run_session(script).mode is AppMode.PRESENTATION
+
+
+def test_hand_loss_cancels_the_hold():
+    script = Script().hold("THREE_FINGER", 12).no_hand(8).hold("THREE_FINGER", 12)
+    assert run_session(script).mode is AppMode.MOUSE
+
+
+def test_tracking_dropout_during_a_latched_hold_does_not_switch_again():
+    script = Script().hold("THREE_FINGER", 25).no_hand(8).hold("THREE_FINGER", 25)
+    assert run_session(script).mode is AppMode.PRESENTATION
+
+
+def test_hand_returning_after_a_real_absence_can_switch_again():
+    script = Script().hold("THREE_FINGER", 25).no_hand(40).hold("THREE_FINGER", 25)
+    assert run_session(script).mode is AppMode.MEDIA
+
+
+def test_camera_stall_cancels_the_hold():
+    script = Script().hold("THREE_FINGER", 12)
+    script.t_ms += 300
+    script.hold("THREE_FINGER", 12)
+    assert run_session(script).mode is AppMode.MOUSE
+
+
+def test_mode_switch_fires_no_action_and_presses_nothing():
+    for mode in AppMode:
+        app = run_session(Script().hold("THREE_FINGER", 25), mode)
+        assert app.summary.actions == {}
+        assert app.media.events == []
+        assert app.presentation._post_event.events == []
+        assert app.mouse.held_buttons == frozenset()
+
+
+def test_new_mode_works_right_after_the_switch():
+    start, stop = (0.3, 0.5), (0.7, 0.5)
+    script = (
+        Script()
+        .hold("THREE_FINGER", 25, *start)
+        .hold("OPEN_PALM", 12, *start)
+        .move("OPEN_PALM", 8, start, stop)
+    )
+    app = run_session(script, AppMode.PRESENTATION)
+    assert app.mode is AppMode.MEDIA
+    assert app.summary.actions == {"next_track": 1}
+
+
+def test_m_key_during_a_hold_restarts_it():
+    script = Script().hold("THREE_FINGER", 15).hold("THREE_FINGER", 10)
+    source = ListSource(script.ticks())
+    app = make_app(source)
+    source.before[15] = lambda: app.set_mode(AppMode.PRESENTATION)
+    app.run()
+    assert app.mode is AppMode.PRESENTATION
+
+
+def test_mode_switch_replays_from_a_recording(tmp_path):
+    path = Script().hold("THREE_FINGER", 25).save(tmp_path / "switch.jsonl")
+    app = replay_app(path, AppMode.MEDIA)
+    app.run()
+    assert app.mode is AppMode.MOUSE
+
+
+def test_hud_status_reports_mode_switch_progress():
+    script = Script().hold("THREE_FINGER", 25)
+    app = make_app(ListSource(script.ticks()), AppMode.PRESENTATION)
+    progress = []
+    for tick in script.ticks():
+        app._apply_gestures(tick)
+        status = app._hud_status(tick.timestamp)
+        progress.append(status.mode_progress)
+    # Nothing until the vote settles, then rising, then cleared by the switch.
+    assert progress[:3] == [0.0, 0.0, 0.0]
+    assert progress[3:18] == sorted(progress[3:18])
+    assert 0.9 < progress[17] < 1.0
+    assert progress[18:] == [0.0] * 7
+    assert status.mode == "MEDIA" and status.next_mode == "MOUSE"
 
 
 # Shutdown guarantees

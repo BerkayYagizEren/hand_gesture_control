@@ -23,6 +23,8 @@ class MediaKey(IntEnum):
     VOLUME_DOWN = 1
     MUTE = 7
     PLAY_PAUSE = 16
+    NEXT_TRACK = 17
+    PREV_TRACK = 18
 
 
 @dataclass(frozen=True)
@@ -49,6 +51,12 @@ class BaseMediaController(ABC):
 
     def play_pause(self) -> None:
         self.tap(MediaKey.PLAY_PAUSE)
+
+    def next_track(self) -> None:
+        self.tap(MediaKey.NEXT_TRACK)
+
+    def prev_track(self) -> None:
+        self.tap(MediaKey.PREV_TRACK)
 
     def tap(self, key: MediaKey) -> None:
         """Press and release `key`. The release is attempted even if the press fails."""

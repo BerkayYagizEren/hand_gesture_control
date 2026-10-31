@@ -88,6 +88,8 @@ class HudStatus:
     frozen: bool = False
     pinch: PinchFeedback = PinchFeedback.NONE
     last_action: str | None = None
+    mode_progress: float = 0.0  # How far a mode switch hold has come, from 0 to 1.
+    next_mode: str | None = None  # A `MODE_COLORS` key.
 
 
 class HUDVisualizer:
@@ -153,7 +155,18 @@ class HUDVisualizer:
 
         pill_y = y + 132
         next_x = _pill(image, "CLUTCH", (left, pill_y), COLOR_CLUTCH if status.clutch else None)
-        _pill(image, "FREEZE", (next_x + 8, pill_y), COLOR_FROZEN if status.frozen else None)
+        next_x = _pill(image, "FREEZE", (next_x + 8, pill_y), COLOR_FROZEN if status.frozen else None)
+        if status.mode_progress > 0:
+            self._draw_mode_progress(image, status, next_x + 12, pill_y)
+
+    def _draw_mode_progress(self, image: np.ndarray, status: HudStatus, left: int, y: int) -> None:
+        color = MODE_COLORS.get(status.next_mode, COLOR_TEXT)
+        _text(image, f"> {status.next_mode}", (left, y + 8), color, 0.38)
+        width = PANEL_ORIGIN[0] + PANEL_SIZE[0] - 14 - left
+        height = 6
+        _capsule(image, (left, y + 12), width, height, COLOR_PILL_OFF)
+        filled = round(width * min(status.mode_progress, 1.0))
+        _capsule(image, (left, y + 12), max(filled, height), height, color)
 
     def _draw_row(self, image: np.ndarray, label: str, value: str, y: int) -> None:
         left = PANEL_ORIGIN[0] + 14
@@ -212,6 +225,20 @@ def _text(
     cv2.putText(image, text, origin, _FONT, scale, color, thickness, cv2.LINE_AA)
 
 
+def _capsule(
+    image: np.ndarray,
+    origin: tuple[int, int],
+    width: int,
+    height: int,
+    color: tuple[int, int, int],
+) -> None:
+    x, y = origin
+    radius = height // 2
+    cv2.rectangle(image, (x + radius, y), (x + width - radius, y + height), color, -1, cv2.LINE_AA)
+    cv2.circle(image, (x + radius, y + radius), radius, color, -1, cv2.LINE_AA)
+    cv2.circle(image, (x + width - radius, y + radius), radius, color, -1, cv2.LINE_AA)
+
+
 def _pill(
     image: np.ndarray,
     label: str,
@@ -221,12 +248,8 @@ def _pill(
     """Draw an indicator, lit if `color` is given, and return the x of its right edge."""
     x, y = origin
     (text_width, _), _ = cv2.getTextSize(label, _FONT, 0.38, 1)
-    width, height = text_width + 20, 18
-    radius = height // 2
-    fill = COLOR_PILL_OFF if color is None else color
-    cv2.rectangle(image, (x + radius, y), (x + width - radius, y + height), fill, -1, cv2.LINE_AA)
-    cv2.circle(image, (x + radius, y + radius), radius, fill, -1, cv2.LINE_AA)
-    cv2.circle(image, (x + width - radius, y + radius), radius, fill, -1, cv2.LINE_AA)
+    width = text_width + 20
+    _capsule(image, origin, width, 18, COLOR_PILL_OFF if color is None else color)
     text_color = COLOR_LABEL if color is None else (20, 20, 20)
     _text(image, label, (x + 10, y + 13), text_color, 0.38)
     return x + width

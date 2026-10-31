@@ -29,11 +29,11 @@ class Rig:
         assert self.detector.phase is SwipePhase.ARMED
         return self
 
-    def move(self, dx, dy=0.0, frames=6, pose=Pose.OPEN_PALM):
+    def move(self, dx, dy=0.0, frames=6, pose=Pose.OPEN_PALM, aspect_ratio=1.0):
         """Move evenly over `frames` frames and return every non-None result."""
         start_x, start_y = self.x, self.y
         results = [
-            self.frame(start_x + dx * i / frames, start_y + dy * i / frames, pose)
+            self.frame(start_x + dx * i / frames, start_y + dy * i / frames, pose, aspect_ratio)
             for i in range(1, frames + 1)
         ]
         return [result for result in results if result is not None]
@@ -91,9 +91,88 @@ def test_exactly_two_to_one_is_rejected_and_just_above_is_accepted():
     assert Rig(config).armed().move(0.25, 0.12, frames=2) == [SwipeDirection.RIGHT]
 
 
-def test_vertical_motion_is_rejected():
+@pytest.mark.parametrize("dy, direction", [(-0.3, SwipeDirection.UP), (0.3, SwipeDirection.DOWN)])
+def test_vertical_swipe_is_reported_once_with_image_y_growing_downward(dy, direction):
     rig = Rig().armed()
-    assert rig.move(0.0, 0.4) == []
+    assert rig.move(0.0, dy) == [direction]
+    assert rig.detector.phase is SwipePhase.COOLDOWN
+
+
+@pytest.mark.parametrize("dx", [0.3, -0.3, 0.2, 0.16])
+@pytest.mark.parametrize("dy", [0.3, -0.3])
+def test_diagonal_motion_is_rejected_on_the_vertical_side_too(dx, dy):
+    rig = Rig().armed()
+    assert rig.move(dx, dy) == []
+
+
+def test_vertical_exactly_two_to_one_is_rejected_and_just_above_is_accepted():
+    config = SwipeConfig(min_distance=0.25)
+    assert Rig(config).armed().move(0.125, -0.25, frames=2) == []
+    assert Rig(config).armed().move(0.12, -0.25, frames=2) == [SwipeDirection.UP]
+
+
+def test_small_sideways_drift_does_not_spoil_a_vertical_swipe():
+    rig = Rig().armed()
+    assert rig.move(0.05, 0.3) == [SwipeDirection.DOWN]
+
+
+def test_short_vertical_motion_is_below_the_distance_threshold():
+    rig = Rig().armed()
+    assert rig.move(0.0, -0.1) == []
+
+
+def test_slow_vertical_motion_is_below_the_speed_threshold():
+    rig = Rig().armed()
+    assert rig.move(0.0, 0.4, frames=60) == []
+    assert rig.detector.phase is SwipePhase.ARMED
+
+
+def test_aspect_ratio_scales_sideways_drift_but_not_vertical_distance():
+    def armed_at(aspect_ratio):
+        rig = Rig()
+        for _ in range(9):
+            rig.frame(aspect_ratio=aspect_ratio)
+        assert rig.detector.phase is SwipePhase.ARMED
+        return rig
+
+    wide = 16 / 9
+    assert armed_at(1.0).move(0.07, 0.2) == [SwipeDirection.DOWN]
+    assert armed_at(wide).move(0.07, 0.2, aspect_ratio=wide) == []
+    assert armed_at(wide).move(0.0, 0.1, aspect_ratio=wide) == []
+    assert armed_at(wide).move(0.0, 0.2, aspect_ratio=wide) == [SwipeDirection.DOWN]
+
+
+def test_swipe_after_sideways_drift_inside_the_window_is_judged_on_its_own_stroke():
+    rig = Rig().armed()
+    rig.move(0.1, frames=3)
+    assert rig.move(0.0, -0.3, frames=4) == [SwipeDirection.UP]
+
+
+@pytest.mark.parametrize(
+    "dy, direction", [(-0.3, SwipeDirection.UP), (0.3, SwipeDirection.DOWN)]
+)
+def test_fast_vertical_return_does_not_fire_a_reverse_swipe(dy, direction):
+    rig = Rig().armed()
+    assert rig.move(0.0, dy) == [direction]
+    assert rig.move(0.0, -dy) == []
+
+
+def test_vertical_return_outlasting_the_cooldown_does_not_fire():
+    rig = Rig().armed()
+    assert rig.move(0.0, -0.3) == [SwipeDirection.UP]
+    results = (
+        rig.move(0.0, 0.3, frames=12) + rig.move(0.0, -0.3, frames=12) + rig.move(0.0, 0.3, frames=12)
+    )
+    assert results == []
+    assert rig.detector.phase is SwipePhase.DISARMED
+
+
+def test_cooldown_then_still_hold_allows_the_opposite_vertical_swipe():
+    rig = Rig().armed()
+    assert rig.move(0.0, -0.3) == [SwipeDirection.UP]
+    rig.hold(0.6)
+    rig.hold(0.2)
+    assert rig.move(0.0, 0.3) == [SwipeDirection.DOWN]
 
 
 def test_short_motion_is_below_the_distance_threshold():

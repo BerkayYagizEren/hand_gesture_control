@@ -52,6 +52,7 @@ CAMERA_HEIGHT = 480
 CAMERA_READ_TIMEOUT = 0.05
 HAND_LOSS_TIMEOUT = 0.2
 POSE_ACTION_COOLDOWN = 1.0  # A held pose that tracking drops and regains must not fire twice.
+MODE_SWITCH_HOLD = 0.5
 KEY_ESC = 27
 KEY_NONE = 255
 
@@ -243,6 +244,58 @@ class SwipeActionMode:
         return action.name
 
 
+class ModeSwitchGesture:
+    """Reports one mode switch each time THREE_FINGER is held for `MODE_SWITCH_HOLD`.
+
+    Votes on its own, because switching resets the active mode's filter and the
+    UNKNOWN that follows would read as the hand having left the pose.
+    """
+
+    def __init__(self, classifier: PoseClassifier) -> None:
+        self._classifier = classifier
+        self._voting = TemporalVotingFilter()
+        self._last_hand_time: float | None = None
+        self._held: float | None = None  # Seconds in the pose; None while not in it.
+        self._latched = False
+
+    @property
+    def progress(self) -> float:
+        """How far the current hold is toward a switch, from 0 to 1."""
+        return 0.0 if self._held is None else min(self._held / MODE_SWITCH_HOLD, 1.0)
+
+    def restart(self) -> None:
+        """Drop the hold's progress. The latch stays, so the same hold cannot fire again."""
+        self._held = None
+
+    def update(self, result: DetectionResult | None, timestamp: float) -> bool:
+        """Advance one tick and return whether the hold just completed."""
+        elapsed = 0.0 if self._last_hand_time is None else timestamp - self._last_hand_time
+        if elapsed >= HAND_LOSS_TIMEOUT:
+            self._held = None
+        # The latch outlives a tracking dropout, but a hand gone this long has really left.
+        if elapsed >= POSE_ACTION_COOLDOWN:
+            self._voting.reset()
+            self._last_hand_time = None
+            self._latched = False
+        if result is None or not result.hands:
+            return False
+
+        self._last_hand_time = timestamp
+        pose = self._voting.update(self._classifier.classify(result.hands[0]).pose)
+        if pose is not Pose.THREE_FINGER:
+            self._held = None
+            self._latched = False
+            return False
+        if self._latched:
+            return False
+        self._held = 0.0 if self._held is None else self._held + elapsed
+        if self._held < MODE_SWITCH_HOLD:
+            return False
+        self._held = None
+        self._latched = True
+        return True
+
+
 @dataclass
 class SessionSummary:
     frames: int = 0
@@ -289,12 +342,15 @@ class GestureControlApp:
             AppMode.MEDIA: SwipeActionMode(
                 self.fsm.classifier,
                 {
-                    SwipeDirection.RIGHT: Action("volume_up", media.volume_up),
-                    SwipeDirection.LEFT: Action("volume_down", media.volume_down),
+                    SwipeDirection.RIGHT: Action("next_track", media.next_track),
+                    SwipeDirection.LEFT: Action("prev_track", media.prev_track),
+                    SwipeDirection.UP: Action("volume_up", media.volume_up),
+                    SwipeDirection.DOWN: Action("volume_down", media.volume_down),
                 },
                 {Pose.THUMBS_UP: Action("play_pause", media.play_pause)},
             ),
         }
+        self._mode_switch = ModeSwitchGesture(self.fsm.classifier)
         self._record_path = record_path
         self._recorder: LandmarkRecorder | None = None
         self._stop = threading.Event()
@@ -310,6 +366,7 @@ class GestureControlApp:
         if mode is self.mode:
             return
         self._reset_gestures()
+        self._mode_switch.restart()
         self.mode = mode
         logger.info("mode: %s", mode.value)
 
@@ -393,6 +450,8 @@ class GestureControlApp:
             self._handle_key(self._render(tick))
 
     def _apply_gestures(self, tick: Tick) -> None:
+        if self._mode_switch.update(tick.result, tick.timestamp):
+            self.set_mode(self._next_mode())
         swipe_mode = self._swipe_modes.get(self.mode)
         if swipe_mode is not None:
             action = swipe_mode.update(tick.result, tick.timestamp)
@@ -416,8 +475,11 @@ class GestureControlApp:
         if key in (ord("q"), KEY_ESC):
             self.request_stop()
         elif key == ord("m"):
-            modes = list(AppMode)
-            self.set_mode(modes[(modes.index(self.mode) + 1) % len(modes)])
+            self.set_mode(self._next_mode())
+
+    def _next_mode(self) -> AppMode:
+        modes = list(AppMode)
+        return modes[(modes.index(self.mode) + 1) % len(modes)]
 
     def _reset_gestures(self) -> None:
         for swipe_mode in self._swipe_modes.values():
@@ -452,6 +514,8 @@ class GestureControlApp:
             frozen=frozen,
             pinch=pinch,
             last_action=self._last_action,
+            mode_progress=self._mode_switch.progress,
+            next_mode=self._next_mode().name,
         )
 
     def _pinch_feedback(self) -> PinchFeedback:

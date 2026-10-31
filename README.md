@@ -17,10 +17,16 @@ Built with **MediaPipe Tasks API**, **Native macOS Quartz Events (PyObjC)**, **O
   - Cursor is anchored to the Index Finger MCP joint (`INDEX_FINGER_MCP`), not the fingertip, preventing movement while closing fingers.
   - Micro-freeze window upon pinch contact prevents click-sliding.
 - **Guaranteed `mouseUp` Safety:** Unconditional hardware release when hand is lost (>200ms timeout), on application exit, or upon camera stutter.
-- **Multi-Mode Control:**
-  - **Mouse Mode:** Cursor navigation, Left Click, Drag & Drop, Right Click (Middle-Pinch), Two-Finger Pixel Scroll.
-  - **Presentation Mode:** Keynote / PowerPoint slide navigation via horizontal directional swipes.
-  - **Media Mode:** Volume Up, Volume Down, and Play/Pause via native macOS `NSSystemDefined` events.
+- **Multi-Mode Control & Touchless Switching:**
+  - **Touchless Mode Switch:** Hold a **3-Finger W-Pose** (Index, Middle, Ring extended) for **0.5s** to cycle modes (`MOUSE` $\to$ `PRESENTATION` $\to$ `MEDIA`) with an animated HUD progress ring and single-fire latching.
+  - **Mouse Mode:** Cursor navigation, Left Click, Drag & Drop, Right Click (Middle-Pinch), Two-Finger Pixel Scroll, Fist Clutch.
+  - **Presentation Mode:** Keynote / PowerPoint slide navigation via horizontal directional swipes (Next / Previous slide).
+  - **4-Way Media Mode:** Native macOS `NSSystemDefined` events:
+    - 🖐️➡️ **Swipe Right:** Next Track (`NEXT_TRACK = 17`)
+    - 🖐️⬅️ **Swipe Left:** Previous Track (`PREV_TRACK = 18`)
+    - 🖐️⬆️ **Swipe Up:** Volume Up (`VOLUME_UP = 0`)
+    - 🖐️⬇️ **Swipe Down:** Volume Down (`VOLUME_DOWN = 1`)
+    - 👍 **Thumbs-Up:** Play / Pause (`PLAY_PAUSE = 16`)
 - **Headless Record & Replay:** Every session can be recorded to JSONL and replayed deterministically without a webcam for automated CI/CD testing.
 - **Cyberpunk HUD Visualizer:** 21-landmark hand skeleton, active anchor tracking, reactive feedback rings, real-time FPS, and latency telemetry.
 
@@ -57,7 +63,7 @@ hand_gesture_control/
 │   ├── ui/
 │   │   └── hud.py              # OpenCV real-time telemetry HUD overlay
 │   └── main.py                 # Integrated application loop & CLI
-└── tests/                      # 470 automated tests (100% passing)
+└── tests/                      # 529 automated tests (100% passing)
 ```
 
 ---
@@ -119,19 +125,20 @@ Because this tool drives native mouse and keyboard events on macOS, your termina
 
 ---
 
-## ⌨️ Interactive Controls (HUD Window)
+## ⌨️ Interactive Controls & Gestures
 
-| Key / Action | Function |
-|---|---|
-| `q` or `ESC` | Safe exit and clean release of all mouse buttons |
-| `m` | Switch operational mode (`mouse` $\leftrightarrow$ `presentation` $\leftrightarrow$ `media`) |
-| `c` | Toggle manual clutch (pause cursor tracking) |
+| Gesture / Key | Action | Function |
+|---|---|---|
+| 🖖 **3-Finger (W-Pose)** | Hold 0.5s | Cycle mode (`MOUSE` $\to$ `PRESENTATION` $\to$ `MEDIA`) with HUD progress fill |
+| ✊ **Fist** | Hold | Clutch mode (freeze cursor tracking to reposition hand) |
+| `m` | Key press | Backup keyboard shortcut to switch operational mode |
+| `q` or `ESC` | Key press | Safe exit and clean release of all mouse buttons / keys |
 
 ---
 
 ## 🧪 Running Automated Tests
 
-Run the full test suite of **470 automated unit and integration tests**:
+Run the full test suite of **529 automated unit and integration tests**:
 
 ```bash
 .venv/bin/pytest -v

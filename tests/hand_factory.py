@@ -79,4 +79,5 @@ POSES = {
     "TWO_FINGER": world_points(ring=CURLED, pinky=CURLED, thumb=THUMB_TUCKED),
     "OPEN_PALM": world_points(),
     "THUMBS_UP": world_points(CURLED, CURLED, CURLED, CURLED, THUMB_LATERAL, rotate_90=True),
+    "THREE_FINGER": world_points(pinky=CURLED, thumb=THUMB_TUCKED),
 }
