@@ -137,17 +137,60 @@ Add `--no-sound` to mute it. Replay and `--headless` runs are always silent.
 
 ---
 
-## ⌨️ Interactive Controls & Gestures
+## ⌨️ Gestures & Controls by Mode
+
+### 🌐 Global Controls (Available in All Modes)
 
 | Gesture / Key | Action | Function |
 |---|---|---|
-| 🖖 **3-Finger (W-Pose)** | Hold 0.5s | Cycle mode (`MOUSE` $\to$ `PRESENTATION` $\to$ `MEDIA` $\to$ `FANTASY`) with HUD progress fill |
-| ✊ **Fist** (`FANTASY`) | Hold 0.25s | Chidori: lightning arcs around the fist, until the hand opens |
-| 🖐️ **Open Palm toward camera** (`FANTASY`) | Hold 0.25s | Rasengan: a chakra sphere charges in the palm, and collapses when it closes |
-
-| ✊ **Fist** | Hold | Clutch mode (freeze cursor tracking to reposition hand) |
+| 🖖 **3-Finger (W-Pose)** | Hold 0.5s | Cycle mode (`MOUSE` $\to$ `PRESENTATION` $\to$ `MEDIA` $\to$ `FANTASY`) with visual progress ring |
 | `m` | Key press | Backup keyboard shortcut to switch operational mode |
-| `q` or `ESC` | Key press | Safe exit and clean release of all mouse buttons / keys |
+| `q` or `ESC` | Key press | Safe exit and clean hardware release of all mouse buttons / keys |
+
+---
+
+### 1. 🖱️ Mouse Mode (`--mode mouse`)
+
+| Gesture | Movement / Trigger | Action |
+|---|---|---|
+| ☝️ **Pointing** | Move hand | Move on-screen cursor (Index MCP tracking + velocity acceleration) |
+| 🤏 **Index Pinch** | Thumb + Index touch | **Left Click** / Hold to **Drag & Drop** |
+| ✌️🤏 **Middle Pinch** | Thumb + Middle touch | **Right Click** |
+| ✌️ **Two Fingers Extended** | Move up / down | **Two-finger Pixel Scroll** (with deadzone filter) |
+| ✊ **Fist (Clutch)** | Close all fingers | **Clutch Freeze** (locks cursor in place to reposition hand in air) |
+
+---
+
+### 2. 📊 Presentation Mode (`--mode presentation`)
+
+| Gesture | Direction | Action |
+|---|---|---|
+| 🖐️➡️ **Horizontal Swipe** | Quick swipe Right | **Next Slide** (Keynote / PowerPoint Right Arrow) |
+| 🖐️⬅️ **Horizontal Swipe** | Quick swipe Left | **Previous Slide** (Keynote / PowerPoint Left Arrow) |
+
+---
+
+### 3. 🎵 Media Mode (`--mode media`)
+
+| Gesture | Direction / Pose | Action |
+|---|---|---|
+| 🖐️➡️ **Swipe Right** | Quick swipe Right | **Next Track** (`NX_KEYTYPE_NEXT`) |
+| 🖐️⬅️ **Swipe Left** | Quick swipe Left | **Previous Track** (`NX_KEYTYPE_PREVIOUS`) |
+| 🖐️⬆️ **Swipe Up** | Quick swipe Up | **Volume Up** (`NX_KEYTYPE_SOUND_UP`) |
+| 🖐️⬇️ **Swipe Down** | Quick swipe Down | **Volume Down** (`NX_KEYTYPE_SOUND_DOWN`) |
+| 👍 **Thumbs-Up** | Thumb pointing up | **Play / Pause Toggle** (`NX_KEYTYPE_PLAY`) |
+
+---
+
+### 4. ⚡ Fantasy Mode (`--mode fantasy`)
+
+> *Showcase & Easter Egg Mode — Sends 0 OS events.*
+
+| Gesture | Trigger | Visual Effect & Audio |
+|---|---|---|
+| ✊ **Fist** | Hold for 0.25s | **Chidori:** Blue/white procedural lightning arcs around the fist + authentic electric chirping sound |
+| 🖐️ **Open Palm** | Face camera for 0.25s | **Rasengan:** Rotating multi-layer chakra sphere & inward particles in palm + authentic wind vortex sound |
+| ✋ **Release / Open / Close** | Return to neutral | Effect immediately collapses / extinguishes and audio cuts off cleanly |
 
 ---
 
@@ -162,5 +205,5 @@ Run the full test suite of **711 automated unit and integration tests**:
 ---
 
 ## 📜 Authorship
-- **Author:** Berkay Yağız Eren (<berkaybbgn@gmail.com>)
+- **Author:** Berkay Yağız Eren (<berkaybora2020@gmail.com>)
 - **License:** MIT
