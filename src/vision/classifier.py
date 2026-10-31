@@ -59,15 +59,15 @@ class PoseClassifier:
         states = finger_states(hand.world_landmarks)
         extended = {finger for finger, state in states.items() if state is FingerState.EXTENDED}
         four_fingers = (Finger.INDEX, Finger.MIDDLE, Finger.RING, Finger.PINKY)
+        all_four_curled = all(states[finger] is FingerState.CURLED for finger in four_fingers)
 
-        # A thumb wrapped over a fist also lands near the fingertips, so a pinching
-        # finger must not be fully curled.
-        is_pinch = index_ratio < self.pinch_start_ratio and (
-            states[Finger.INDEX] is not FingerState.CURLED
-        )
-        is_middle_pinch = middle_ratio < self.pinch_start_ratio and (
-            states[Finger.MIDDLE] is not FingerState.CURLED
-        )
+        # A fist has all four fingers curled into the palm.
+        if all_four_curled and states[Finger.THUMB] is not FingerState.EXTENDED:
+            return Pose.FIST
+
+        # Pinch detection: when not a full fist, distance between tips defines the pinch.
+        is_pinch = index_ratio < self.pinch_start_ratio
+        is_middle_pinch = middle_ratio < self.pinch_start_ratio
         if is_pinch and is_middle_pinch:
             return Pose.PINCH if index_ratio <= middle_ratio else Pose.MIDDLE_PINCH
         if is_pinch:
@@ -75,9 +75,7 @@ class PoseClassifier:
         if is_middle_pinch:
             return Pose.MIDDLE_PINCH
 
-        if all(states[finger] is FingerState.CURLED for finger in four_fingers):
-            if states[Finger.THUMB] is not FingerState.EXTENDED:
-                return Pose.FIST
+        if all_four_curled:
             thumb = direction(hand.world_landmarks, HandLandmark.THUMB_MCP, HandLandmark.THUMB_TIP)
             return Pose.THUMBS_UP if -thumb.y >= THUMBS_UP_MIN_COMPONENT else Pose.UNKNOWN
 
