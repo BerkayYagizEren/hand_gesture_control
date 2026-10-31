@@ -1,7 +1,7 @@
-"""FANTASY mode: draws effects over the camera image, and does nothing else.
+"""FANTASY mode: draws effects over the camera image and plays their sounds, nothing else.
 
-This package stays off the OS: it never imports AppKit, Quartz or the controllers,
-and has no way to send a mouse, keyboard or media event.
+This package never imports AppKit, Quartz or the controllers, and has no way to send
+a mouse, keyboard or media event. Its one route out is the `afplay` process in `sound`.
 """
 
 from __future__ import annotations
@@ -12,7 +12,8 @@ import numpy as np
 
 from src.fantasy.effects.chidori import ChidoriEffect
 from src.fantasy.effects.rasengan import RasenganEffect
-from src.fantasy.engine import EffectKind, FantasyConfig, FantasyEngine
+from src.fantasy.engine import EffectKind, FantasyConfig, FantasyEngine, FantasyPhase
+from src.fantasy.sound import BaseSoundPlayer, MockSoundPlayer
 from src.vision.classifier import Pose, PoseClassifier, TemporalVotingFilter
 from src.vision.detector import DetectionResult, Hand, HandLandmark, palm_width
 from src.vision.geometry import palm_normal
@@ -44,9 +45,12 @@ class FantasyMode:
         classifier: PoseClassifier,
         seed: int = DEFAULT_SEED,
         config: FantasyConfig = FantasyConfig(),
+        sound_player: BaseSoundPlayer | None = None,
     ) -> None:
         self._classifier = classifier
         self._engine = FantasyEngine(config)
+        self._sound_player = sound_player if sound_player is not None else MockSoundPlayer()
+        self._track: str | None = None  # What this tick's phase wants heard.
         self._voting = TemporalVotingFilter()
         rng = np.random.default_rng(seed)
         self._effects = {
@@ -67,7 +71,13 @@ class FantasyMode:
     def engine(self) -> FantasyEngine:
         return self._engine
 
+    @property
+    def sound_player(self) -> BaseSoundPlayer:
+        return self._sound_player
+
     def reset(self) -> None:
+        self._sound_player.stop()
+        self._track = None
         self._engine.reset()
         self._voting.reset()
         self._hand = None
@@ -84,6 +94,7 @@ class FantasyMode:
             self._hand = result.hands[0]
             trigger = TRIGGERS.get(self._voting.update(self._observed_pose(self._hand)))
         activated = self._engine.update(trigger, hand_present, timestamp)
+        self._sync_sound()
         return activated.value if activated is not None else None
 
     def render(self, image: np.ndarray, timestamp: float) -> None:
@@ -94,6 +105,19 @@ class FantasyMode:
         anchor = _effect_anchor(self._hand, effect, image)
         if anchor is not None:
             self._effects[effect].render(image, anchor[0], anchor[1], level, timestamp)
+
+    def _sync_sound(self) -> None:
+        phase, effect = self._engine.phase, self._engine.effect
+        # Only the Rasengan charges audibly. A clip that ends while the effect holds starts over.
+        audible = phase is FantasyPhase.ACTIVE or (
+            phase is FantasyPhase.CHARGING and effect is EffectKind.RASENGAN
+        )
+        track = effect.value if audible else None
+        if track != self._track and self._sound_player.is_playing:
+            self._sound_player.stop()
+        self._track = track
+        if track is not None and not self._sound_player.is_playing:
+            self._sound_player.play(track)
 
     def _observed_pose(self, hand: Hand) -> Pose:
         # Goes through the vote with the pose, so one bad normal cannot end a Rasengan.

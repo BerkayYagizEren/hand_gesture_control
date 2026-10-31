@@ -21,7 +21,7 @@ Built with **MediaPipe Tasks API**, **Native macOS Quartz Events (PyObjC)**, **O
   - **Touchless Mode Switch:** Hold a **3-Finger W-Pose** (Index, Middle, Ring extended) for **0.5s** to cycle modes (`MOUSE` $\to$ `PRESENTATION` $\to$ `MEDIA` $\to$ `FANTASY`) with an animated HUD progress ring and single-fire latching.
   - **Mouse Mode:** Cursor navigation, Left Click, Drag & Drop, Right Click (Middle-Pinch), Two-Finger Pixel Scroll, Fist Clutch.
   - **Presentation Mode:** Keynote / PowerPoint slide navigation via horizontal directional swipes (Next / Previous slide).
-  - **Fantasy Mode:** Chidori and Rasengan effects drawn over the camera image, one at a time with a 1s cooldown. Sends no mouse, keyboard or media events.
+  - **Fantasy Mode:** Chidori and Rasengan effects drawn over the camera image, one at a time with a 1s cooldown, with their sounds played through `afplay`. Sends no mouse, keyboard or media events.
   - **4-Way Media Mode:** Native macOS `NSSystemDefined` events:
     - 🖐️➡️ **Swipe Right:** Next Track (`NEXT_TRACK = 17`)
     - 🖐️⬅️ **Swipe Left:** Previous Track (`PREV_TRACK = 18`)
@@ -64,11 +64,12 @@ hand_gesture_control/
 │   ├── fantasy/
 │   │   ├── engine.py           # IDLE/CHARGING/ACTIVE/COOLDOWN effect FSM
 │   │   ├── mode.py             # Mode driver, isolated from the OS event APIs
+│   │   ├── sound.py            # Non-blocking afplay sound player, with a mock
 │   │   └── effects/            # Seeded Chidori and Rasengan renderers
 │   ├── ui/
 │   │   └── hud.py              # OpenCV real-time telemetry HUD overlay
 │   └── main.py                 # Integrated application loop & CLI
-└── tests/                      # 659 automated tests (100% passing)
+└── tests/                      # 711 automated tests (100% passing)
 ```
 
 ---
@@ -117,6 +118,7 @@ Because this tool drives native mouse and keyboard events on macOS, your termina
 ```bash
 .venv/bin/python -m src.main --mode fantasy
 ```
+Add `--no-sound` to mute it. Replay and `--headless` runs are always silent.
 
 #### Recording a Session:
 ```bash
@@ -151,7 +153,7 @@ Because this tool drives native mouse and keyboard events on macOS, your termina
 
 ## 🧪 Running Automated Tests
 
-Run the full test suite of **659 automated unit and integration tests**:
+Run the full test suite of **711 automated unit and integration tests**:
 
 ```bash
 .venv/bin/pytest -v

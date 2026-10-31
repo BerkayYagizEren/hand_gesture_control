@@ -34,6 +34,7 @@ from src.controller.media import BaseMediaController, MockMediaController, Quart
 from src.controller.presentation import PresentationController
 from src.controller.scroll import ScrollController
 from src.fantasy.mode import FantasyMode
+from src.fantasy.sound import AfplayAudioPlayer, BaseSoundPlayer, MockSoundPlayer
 from src.tracking.cursor_controller import CursorController
 from src.tracking.state_machine import GestureState, GestureStateMachine
 from src.ui.hud import HudStatus, HUDVisualizer, PinchFeedback
@@ -318,6 +319,7 @@ class GestureControlApp:
         mode: AppMode = AppMode.MOUSE,
         window: Window | None = None,
         record_path: str | Path | None = None,
+        sound_player: BaseSoundPlayer | None = None,
     ) -> None:
         self.source = source
         self.mouse = mouse
@@ -333,7 +335,7 @@ class GestureControlApp:
             CursorController(mouse.screen_bounds(), mouse.position),
             scroll=ScrollController(mouse),
         )
-        self._fantasy = FantasyMode(self.fsm.classifier)
+        self._fantasy = FantasyMode(self.fsm.classifier, sound_player=sound_player)
         self._swipe_modes = {
             AppMode.PRESENTATION: SwipeActionMode(
                 self.fsm.classifier,
@@ -401,7 +403,11 @@ class GestureControlApp:
         if self._is_shut_down:
             return
         self._is_shut_down = True
-        steps: list[Callable[[], None]] = [self._reset_gestures, self.mouse.ensure_all_released]
+        steps: list[Callable[[], None]] = [
+            self._reset_gestures,
+            self.mouse.ensure_all_released,
+            self._fantasy.sound_player.stop,
+        ]
         if self._recorder is not None:
             steps.append(self._recorder.close)
         steps.append(self.source.close)
@@ -550,7 +556,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--mode", choices=[mode.value for mode in AppMode], default=AppMode.MOUSE.value
     )
     parser.add_argument("--camera-id", type=int, default=0, metavar="INT", help="camera index")
+    parser.add_argument("--no-sound", action="store_true", help="mute the FANTASY mode effects")
     return parser
+
+
+def build_sound_player(args: argparse.Namespace) -> BaseSoundPlayer:
+    """Only a live session with a window may make a sound; a replay never does."""
+    if args.no_sound or args.headless or args.replay is not None:
+        return MockSoundPlayer()
+    return AfplayAudioPlayer()
 
 
 def build_app(args: argparse.Namespace) -> GestureControlApp:
@@ -580,6 +594,7 @@ def build_app(args: argparse.Namespace) -> GestureControlApp:
         mode=AppMode(args.mode),
         window=None if args.headless else OpenCvWindow(),
         record_path=args.record,
+        sound_player=build_sound_player(args),
     )
 
 
