@@ -7,10 +7,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import IntEnum
 
-from AppKit import NSEvent, NSEventTypeSystemDefined
-
-from src.controller.quartz_mouse import post_to_hid_tap
-
 _AUX_CONTROL_SUBTYPE = 8
 _KEY_DOWN_STATE = 0xA
 _KEY_UP_STATE = 0xB
@@ -79,10 +75,17 @@ class MockMediaController(BaseMediaController):
 class QuartzMediaController(BaseMediaController):
     """Posts the media key events at the HID tap, as the keyboard's own keys arrive."""
 
-    def __init__(self, post_event: Callable[[object], None] = post_to_hid_tap) -> None:
+    def __init__(self, post_event: Callable[[object], None] | None = None) -> None:
+        if post_event is None:
+            from src.controller.quartz_mouse import post_to_hid_tap
+
+            post_event = post_to_hid_tap
         self._post_event = post_event
 
     def _post(self, event: MediaKeyEvent) -> None:
+        # Imported on use, so that the mock and replay do not load AppKit.
+        from AppKit import NSEvent, NSEventTypeSystemDefined
+
         state = _KEY_DOWN_STATE if event.is_down else _KEY_UP_STATE
         ns_event = NSEvent.otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2_(
             NSEventTypeSystemDefined,

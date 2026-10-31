@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from enum import Enum, auto
 
@@ -52,6 +52,7 @@ MODE_COLORS = {
     "SCROLL": (235, 190, 70),
     "PRESENTATION": (70, 170, 255),
     "MEDIA": (225, 120, 215),
+    "FANTASY": (255, 229, 0),  # Chakra blue, #00E5FF.
 }
 
 PANEL_ORIGIN = (12, 12)
@@ -99,15 +100,24 @@ class HUDVisualizer:
         self._panel_mask = _rounded_mask(PANEL_SIZE, PANEL_RADIUS)
 
     def draw(
-        self, image: np.ndarray, result: DetectionResult | None, status: HudStatus
+        self,
+        image: np.ndarray,
+        result: DetectionResult | None,
+        status: HudStatus,
+        effects: Callable[[np.ndarray], None] | None = None,
     ) -> np.ndarray:
-        """Render one frame in place and return it. `result` is None if nothing was detected."""
+        """Render one frame in place and return it. `result` is None if nothing was detected.
+
+        `effects` draws between the hand and the panel, so it covers one but not the other.
+        """
         hands = result.hands if result is not None else ()
         for hand in hands:
             self._draw_hand(image, hand)
         # The state machine only follows the first hand, so that one gets the ring.
         if hands and status.pinch is not PinchFeedback.NONE:
             self._draw_pinch_ring(image, hands[0], status.pinch)
+        if effects is not None:
+            effects(image)
         self._draw_panel(image, status)
         return image
 

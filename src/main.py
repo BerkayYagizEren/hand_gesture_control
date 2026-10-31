@@ -4,6 +4,7 @@ Capture runs on `CameraStream`'s thread and hands over only the newest frame. Al
 other work stays on the main thread, because macOS requires it for OpenCV windows.
 
     .venv/bin/python -m src.main --mode presentation
+    .venv/bin/python -m src.main --mode fantasy
     .venv/bin/python -m src.main --replay records/session.jsonl --headless
 
 Replay drives mock controllers, so a recording can never move the real cursor.
@@ -31,8 +32,8 @@ from src.camera.stream import CameraError, CameraStream
 from src.controller.base import BaseMouseController, MockMouseController
 from src.controller.media import BaseMediaController, MockMediaController, QuartzMediaController
 from src.controller.presentation import PresentationController
-from src.controller.quartz_mouse import QuartzMouseController, check_accessibility_permission
 from src.controller.scroll import ScrollController
+from src.fantasy.mode import FantasyMode
 from src.tracking.cursor_controller import CursorController
 from src.tracking.state_machine import GestureState, GestureStateMachine
 from src.ui.hud import HudStatus, HUDVisualizer, PinchFeedback
@@ -61,6 +62,7 @@ class AppMode(Enum):
     MOUSE = "mouse"
     PRESENTATION = "presentation"
     MEDIA = "media"
+    FANTASY = "fantasy"
 
 
 class Action(NamedTuple):
@@ -331,6 +333,7 @@ class GestureControlApp:
             CursorController(mouse.screen_bounds(), mouse.position),
             scroll=ScrollController(mouse),
         )
+        self._fantasy = FantasyMode(self.fsm.classifier)
         self._swipe_modes = {
             AppMode.PRESENTATION: SwipeActionMode(
                 self.fsm.classifier,
@@ -349,6 +352,7 @@ class GestureControlApp:
                 },
                 {Pose.THUMBS_UP: Action("play_pause", media.play_pause)},
             ),
+            AppMode.FANTASY: self._fantasy,
         }
         self._mode_switch = ModeSwitchGesture(self.fsm.classifier)
         self._record_path = record_path
@@ -467,8 +471,11 @@ class GestureControlApp:
     def _render(self, tick: Tick) -> int:
         if tick.image is None:
             return self.window.poll()
+        effects = None
+        if self.mode is AppMode.FANTASY:
+            effects = lambda image: self._fantasy.render(image, tick.timestamp)
         return self.window.show(
-            self.hud.draw(tick.image, tick.result, self._hud_status(tick.timestamp))
+            self.hud.draw(tick.image, tick.result, self._hud_status(tick.timestamp), effects)
         )
 
     def _handle_key(self, key: int) -> None:
@@ -554,6 +561,9 @@ def build_app(args: argparse.Namespace) -> GestureControlApp:
         media: BaseMediaController = MockMediaController()
         presentation = PresentationController(post_event=lambda _event: None)
     else:
+        # Imported only here, because Quartz loads AppKit and replay must not need either.
+        from src.controller.quartz_mouse import QuartzMouseController, check_accessibility_permission
+
         if not check_accessibility_permission(prompt=True):
             logger.warning("no Accessibility permission: macOS will drop all input events")
         source = LiveSource(

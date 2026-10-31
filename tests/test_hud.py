@@ -147,7 +147,7 @@ def test_no_mode_progress_without_a_hold():
     assert not has_color(idle, MODE_COLORS["MEDIA"])
 
 
-@pytest.mark.parametrize("next_mode", ["MOUSE", "PRESENTATION", "MEDIA"])
+@pytest.mark.parametrize("next_mode", ["MOUSE", "PRESENTATION", "MEDIA", "FANTASY"])
 def test_mode_progress_is_drawn_in_the_next_modes_color_inside_the_panel(next_mode):
     image = HUDVisualizer().draw(blank(), None, switching(0.5, next_mode))
     assert has_color(image, MODE_COLORS[next_mode])

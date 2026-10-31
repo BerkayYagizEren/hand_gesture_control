@@ -4,10 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-import Quartz
-
-from src.controller.quartz_mouse import post_to_hid_tap
-
 KEY_CODE_LEFT_ARROW = 123
 KEY_CODE_RIGHT_ARROW = 124
 
@@ -15,7 +11,11 @@ KEY_CODE_RIGHT_ARROW = 124
 class PresentationController:
     """Taps arrow keys for whichever app has keyboard focus."""
 
-    def __init__(self, post_event: Callable[[object], None] = post_to_hid_tap) -> None:
+    def __init__(self, post_event: Callable[[object], None] | None = None) -> None:
+        if post_event is None:
+            from src.controller.quartz_mouse import post_to_hid_tap
+
+            post_event = post_to_hid_tap
         self._post_event = post_event
 
     def next_slide(self) -> None:
@@ -35,6 +35,9 @@ class PresentationController:
 
     @staticmethod
     def _key_event(key_code: int, is_down: bool) -> object:
+        # Imported on use, because Quartz loads AppKit and replay must not need it.
+        import Quartz
+
         event = Quartz.CGEventCreateKeyboardEvent(None, key_code, is_down)
         if event is None:
             raise RuntimeError(f"CGEventCreateKeyboardEvent failed for key {key_code}")

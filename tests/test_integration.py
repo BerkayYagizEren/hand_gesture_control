@@ -336,8 +336,8 @@ def test_switching_mode_mid_drag_releases_the_button():
 
 
 def test_m_key_cycles_through_the_modes():
-    window = FakeWindow([ord("m"), ord("m"), ord("m")])
-    source = ListSource([tick_with_image() for _ in range(3)])
+    window = FakeWindow([ord("m"), ord("m"), ord("m"), ord("m")])
+    source = ListSource([tick_with_image() for _ in range(4)])
     app = make_app(source, window=window)
     seen = []
     original = app.set_mode
@@ -348,7 +348,7 @@ def test_m_key_cycles_through_the_modes():
 
     app.set_mode = spy
     app.run()
-    assert seen == [AppMode.PRESENTATION, AppMode.MEDIA, AppMode.MOUSE]
+    assert seen == [AppMode.PRESENTATION, AppMode.MEDIA, AppMode.FANTASY, AppMode.MOUSE]
 
 
 # Three finger mode switching
@@ -365,7 +365,8 @@ def run_session(script, mode=AppMode.MOUSE):
     [
         (AppMode.MOUSE, AppMode.PRESENTATION),
         (AppMode.PRESENTATION, AppMode.MEDIA),
-        (AppMode.MEDIA, AppMode.MOUSE),
+        (AppMode.MEDIA, AppMode.FANTASY),
+        (AppMode.FANTASY, AppMode.MOUSE),
     ],
 )
 def test_three_finger_hold_moves_to_the_next_mode(start, expected):
@@ -385,7 +386,7 @@ def test_long_three_finger_hold_is_a_single_switch():
 
 def test_leaving_the_pose_allows_the_next_switch():
     script = Script()
-    for _ in range(3):
+    for _ in range(4):
         script.hold("THREE_FINGER", 25).hold("POINTING", 5)
     assert run_session(script).mode is AppMode.MOUSE  # The whole cycle, back to the start.
 
@@ -457,7 +458,7 @@ def test_mode_switch_replays_from_a_recording(tmp_path):
     path = Script().hold("THREE_FINGER", 25).save(tmp_path / "switch.jsonl")
     app = replay_app(path, AppMode.MEDIA)
     app.run()
-    assert app.mode is AppMode.MOUSE
+    assert app.mode is AppMode.FANTASY
 
 
 def test_hud_status_reports_mode_switch_progress():
@@ -473,7 +474,7 @@ def test_hud_status_reports_mode_switch_progress():
     assert progress[3:18] == sorted(progress[3:18])
     assert 0.9 < progress[17] < 1.0
     assert progress[18:] == [0.0] * 7
-    assert status.mode == "MEDIA" and status.next_mode == "MOUSE"
+    assert status.mode == "MEDIA" and status.next_mode == "FANTASY"
 
 
 # Shutdown guarantees
@@ -686,6 +687,7 @@ def test_window_receives_hud_frames_with_panel(tmp_path):
         (Script().hold("POINTING", 8), AppMode.MOUSE, ("MOUSE", "TRACKING", "POINTING")),
         (Script().hold("OPEN_PALM", 8), AppMode.PRESENTATION, ("PRESENTATION", "ARMED", "OPEN_PALM")),
         (Script().hold("OPEN_PALM", 2), AppMode.MEDIA, ("MEDIA", "DISARMED", "UNKNOWN")),
+        (Script().hold("FIST", 8), AppMode.FANTASY, ("FANTASY", "CHARGING", "FIST")),
     ],
 )
 def test_hud_status_names_mode_state_and_pose(state_frames, mode, expected):
