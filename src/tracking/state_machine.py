@@ -8,6 +8,9 @@ the camera times out, because the hand-loss timeout only fires inside a call.
 A pinch presses the button as soon as it is recognized. The cursor then stays put
 until the press becomes a drag, so a click cannot slide; releasing before that
 snaps the internal cursor back to the press point.
+
+While scrolling, the voted pose decides when the mode ends, but only frames that
+are themselves TWO_FINGER scroll, so changing pose does not nudge the page.
 """
 
 from __future__ import annotations
@@ -18,6 +21,7 @@ from dataclasses import dataclass
 from enum import Enum, auto
 
 from src.controller.base import BaseMouseController
+from src.controller.scroll import ScrollController
 from src.tracking.cursor_controller import CursorController
 from src.vision.classifier import (
     PINCH_START_RATIO,
@@ -82,12 +86,14 @@ class GestureStateMachine:
         config: GestureConfig = GestureConfig(),
         classifier: PoseClassifier | None = None,
         voting: TemporalVotingFilter | None = None,
+        scroll: ScrollController | None = None,
     ) -> None:
         self.mouse = mouse
         self.cursor = cursor
         self.config = config
         self.classifier = classifier or PoseClassifier(config.pinch_start_ratio)
         self.voting = voting or TemporalVotingFilter()
+        self.scroll = scroll or ScrollController(mouse)
         self._state = GestureState.IDLE
         self._last_hand_time = 0.0
         self._cooldown_until = 0.0
@@ -133,6 +139,7 @@ class GestureStateMachine:
         self.voting.reset()
         self.cursor.clutch = False
         self.cursor.reset()
+        self.scroll.reset()
         self.mouse.ensure_all_released()
 
     def __enter__(self) -> GestureStateMachine:
@@ -180,7 +187,10 @@ class GestureStateMachine:
                     self._finish_action(timestamp)
             case GestureState.SCROLL_ACTIVE:
                 if pose is not Pose.TWO_FINGER:
+                    self.scroll.reset()
                     self._finish_action(timestamp)
+                elif frame.observation.pose is Pose.TWO_FINGER:
+                    self.scroll.update(frame.landmarks, timestamp)
             case GestureState.CLUTCH_ACTIVE:
                 if pose is not Pose.FIST:
                     self.cursor.clutch = False
@@ -207,6 +217,8 @@ class GestureStateMachine:
             self._state = GestureState.RIGHT_CLICK_ACTIVE
         elif pose is Pose.TWO_FINGER:
             self.cursor.reset()
+            self.scroll.reset()
+            self.scroll.update(frame.landmarks, timestamp)
             self._state = GestureState.SCROLL_ACTIVE
         elif pose is Pose.FIST:
             self.cursor.clutch = True

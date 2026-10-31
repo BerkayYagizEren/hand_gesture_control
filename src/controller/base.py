@@ -76,6 +76,14 @@ class MouseEvent:
     click_state: int = 0  # kCGMouseEventClickState; 0 for plain moves.
 
 
+@dataclass(frozen=True)
+class ScrollEvent:
+    """Whole pixels, signed as Quartz wheels: +dy scrolls up, +dx scrolls left."""
+
+    dx: int
+    dy: int
+
+
 class BaseMouseController(ABC):
     """Mouse driver. Use as a context manager to guarantee release on exit.
 
@@ -108,6 +116,10 @@ class BaseMouseController(ABC):
     @abstractmethod
     def _post(self, event: MouseEvent) -> None:
         """Deliver one event to the OS."""
+
+    @abstractmethod
+    def _post_scroll(self, event: ScrollEvent) -> None:
+        """Deliver one scroll event to the OS."""
 
     @property
     def position(self) -> Point:
@@ -163,6 +175,14 @@ class BaseMouseController(ABC):
     def double_click_left(self) -> None:
         self.click_left()
         self.click_left()
+
+    def scroll(self, dx: float, dy: float) -> None:
+        """Scroll by pixels at the cursor, signed as `ScrollEvent`. Rounds to whole pixels."""
+        if not (math.isfinite(dx) and math.isfinite(dy)):
+            raise ValueError(f"non-finite scroll ({dx}, {dy})")
+        event = ScrollEvent(round(dx), round(dy))
+        if event.dx or event.dy:
+            self._post_scroll(event)
 
     def ensure_all_released(self) -> None:
         """Release every held button. Tries them all even if one fails, then re-raises."""
@@ -222,6 +242,7 @@ class MockMouseController(BaseMouseController):
         self.bounds = bounds
         self.os_position = start  # Set directly to simulate the physical mouse.
         self.events: list[MouseEvent] = []
+        self.scroll_events: list[ScrollEvent] = []
         super().__init__(double_click_interval, double_click_slop, clock)
 
     def screen_bounds(self) -> ScreenBounds:
@@ -233,3 +254,6 @@ class MockMouseController(BaseMouseController):
     def _post(self, event: MouseEvent) -> None:
         self.events.append(event)
         self.os_position = Point(event.x, event.y)
+
+    def _post_scroll(self, event: ScrollEvent) -> None:
+        self.scroll_events.append(event)

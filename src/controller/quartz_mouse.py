@@ -15,6 +15,7 @@ from src.controller.base import (
     MouseEventType,
     Point,
     ScreenBounds,
+    ScrollEvent,
 )
 
 _QUARTZ_EVENTS = {
@@ -40,7 +41,7 @@ def check_accessibility_permission(prompt: bool = False) -> bool:
     return bool(Quartz.CGRequestPostEventAccess()) if prompt else False
 
 
-def _post_to_hid_tap(event: object) -> None:
+def post_to_hid_tap(event: object) -> None:
     Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
 
 
@@ -53,7 +54,7 @@ class QuartzMouseController(BaseMouseController):
         double_click_interval: float = DEFAULT_DOUBLE_CLICK_INTERVAL,
         double_click_slop: float = DEFAULT_DOUBLE_CLICK_SLOP,
         clock: Callable[[], float] = time.perf_counter,
-        post_event: Callable[[object], None] = _post_to_hid_tap,
+        post_event: Callable[[object], None] = post_to_hid_tap,
     ) -> None:
         self._display_id = Quartz.CGMainDisplayID() if display_id is None else display_id
         self._post_event = post_event
@@ -77,4 +78,13 @@ class QuartzMouseController(BaseMouseController):
             Quartz.CGEventSetIntegerValueField(
                 cg_event, Quartz.kCGMouseEventClickState, event.click_state
             )
+        self._post_event(cg_event)
+
+    def _post_scroll(self, event: ScrollEvent) -> None:
+        # The fixed-arity variant, since the plain one is variadic in C. Wheel 1 is vertical.
+        cg_event = Quartz.CGEventCreateScrollWheelEvent2(
+            None, Quartz.kCGScrollEventUnitPixel, 2, event.dy, event.dx, 0
+        )
+        if cg_event is None:
+            raise RuntimeError(f"CGEventCreateScrollWheelEvent2 failed for {event}")
         self._post_event(cg_event)
