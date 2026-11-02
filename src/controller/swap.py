@@ -36,6 +36,21 @@ class SwapController:
             self._post_event(down)
         finally:
             self._post_event(up)
+        # macOS Window Server ignores CGEvent synthetic Control flags for Spaces navigation;
+        # dispatching via System Events reliably triggers the virtual desktop slide animation:
+        self._trigger_system_space_switch(key_code)
+
+    @staticmethod
+    def _trigger_system_space_switch(key_code: int) -> None:
+        try:
+            import Foundation
+
+            script = Foundation.NSAppleScript.alloc().initWithSource_(
+                f'tell application "System Events" to key code {key_code} using {{control down}}'
+            )
+            script.executeAndReturnError_(None)
+        except Exception:
+            pass
 
     @staticmethod
     def _key_event(key_code: int, is_down: bool) -> object:
