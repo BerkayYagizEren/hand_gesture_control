@@ -18,9 +18,9 @@ Built with **MediaPipe Tasks API**, **Native macOS Quartz Events (PyObjC)**, **O
   - Micro-freeze window upon pinch contact prevents click-sliding.
 - **Guaranteed `mouseUp` Safety:** Unconditional hardware release when hand is lost (>200ms timeout), on application exit, or upon camera stutter.
 - **Multi-Mode Control & Touchless Switching:**
-  - **Touchless Mode Switch:** Hold a **3-Finger W-Pose** (Index, Middle, Ring extended) for **0.5s** to cycle modes (`MOUSE` $\to$ `PRESENTATION` $\to$ `MEDIA` $\to$ `FANTASY`) with an animated HUD progress ring and single-fire latching.
+  - **Touchless Mode Switch:** Hold a **3-Finger W-Pose** (Index, Middle, Ring extended) for **0.5s** to cycle modes (`MOUSE` $\to$ `SWAP` $\to$ `MEDIA` $\to$ `FANTASY`) with an animated HUD progress ring and single-fire latching.
   - **Mouse Mode:** Cursor navigation, Left Click, Drag & Drop, Right Click (Middle-Pinch), Two-Finger Pixel Scroll, Fist Clutch.
-  - **Presentation Mode:** Keynote / PowerPoint slide navigation via horizontal directional swipes (Next / Previous slide).
+  - **Swap Mode:** Switch between macOS desktops and full-screen apps (Spaces) with horizontal swipes, or open Mission Control with an upward swipe.
   - **Fantasy Mode:** Chidori and Rasengan effects drawn over the camera image, one at a time with a 1s cooldown, with their sounds played through `afplay`. Sends no mouse, keyboard or media events.
   - **4-Way Media Mode:** Native macOS `NSSystemDefined` events:
     - 🖐️➡️ **Swipe Right:** Next Track (`NEXT_TRACK = 17`)
@@ -49,7 +49,7 @@ hand_gesture_control/
 │   │   ├── quartz_mouse.py     # Native macOS Quartz mouse driver
 │   │   ├── scroll.py           # Deadzone-stabilized pixel scroll driver
 │   │   ├── media.py            # macOS NSSystemDefined media controller
-│   │   └── presentation.py     # Slide arrow key presentation driver
+│   │   └── swap.py             # Control + arrow Spaces & Mission Control driver
 │   ├── tracking/
 │   │   ├── one_euro.py         # Variable dt 1€ filter
 │   │   ├── cursor_controller.py# Relative acceleration, clutch & pinch freeze
@@ -69,7 +69,7 @@ hand_gesture_control/
 │   ├── ui/
 │   │   └── hud.py              # OpenCV real-time telemetry HUD overlay
 │   └── main.py                 # Integrated application loop & CLI
-└── tests/                      # 711 automated tests (100% passing)
+└── tests/                      # 719 automated tests (100% passing)
 ```
 
 ---
@@ -104,10 +104,11 @@ Because this tool drives native mouse and keyboard events on macOS, your termina
 .venv/bin/python -m src.main --mode mouse
 ```
 
-#### Presentation Mode (Keynote / Slides):
+#### Swap Mode (Desktops / Spaces):
 ```bash
-.venv/bin/python -m src.main --mode presentation
+.venv/bin/python -m src.main --mode swap
 ```
+`--mode presentation` still works as an alias.
 
 #### Media Mode (Volume & Play/Pause):
 ```bash
@@ -143,7 +144,7 @@ Add `--no-sound` to mute it. Replay and `--headless` runs are always silent.
 
 | Gesture / Key | Action | Function |
 |---|---|---|
-| 🖖 **3-Finger (W-Pose)** | Hold 0.5s | Cycle mode (`MOUSE` $\to$ `PRESENTATION` $\to$ `MEDIA` $\to$ `FANTASY`) with visual progress ring |
+| 🖖 **3-Finger (W-Pose)** | Hold 0.5s | Cycle mode (`MOUSE` $\to$ `SWAP` $\to$ `MEDIA` $\to$ `FANTASY`) with visual progress ring |
 | `m` | Key press | Backup keyboard shortcut to switch operational mode |
 | `q` or `ESC` | Key press | Safe exit and clean hardware release of all mouse buttons / keys |
 
@@ -161,12 +162,15 @@ Add `--no-sound` to mute it. Replay and `--headless` runs are always silent.
 
 ---
 
-### 2. 📊 Presentation Mode (`--mode presentation`)
+### 2. 🖥️ Swap Mode (`--mode swap`)
+
+Requires the Mission Control shortcuts to be enabled in **System Settings > Keyboard > Keyboard Shortcuts > Mission Control**.
 
 | Gesture | Direction | Action |
 |---|---|---|
-| 🖐️➡️ **Horizontal Swipe** | Quick swipe Right | **Next Slide** (Keynote / PowerPoint Right Arrow) |
-| 🖐️⬅️ **Horizontal Swipe** | Quick swipe Left | **Previous Slide** (Keynote / PowerPoint Left Arrow) |
+| 🖐️➡️ **Swipe Right** | Quick swipe Right | **Next Space** (`Control + Right Arrow`) |
+| 🖐️⬅️ **Swipe Left** | Quick swipe Left | **Previous Space** (`Control + Left Arrow`) |
+| 🖐️⬆️ **Swipe Up** | Quick swipe Up | **Mission Control** (`Control + Up Arrow`) |
 
 ---
 
@@ -196,7 +200,7 @@ Add `--no-sound` to mute it. Replay and `--headless` runs are always silent.
 
 ## 🧪 Running Automated Tests
 
-Run the full test suite of **711 automated unit and integration tests**:
+Run the full test suite of **719 automated unit and integration tests**:
 
 ```bash
 .venv/bin/pytest -v

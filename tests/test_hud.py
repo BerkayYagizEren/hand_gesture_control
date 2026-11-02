@@ -147,7 +147,13 @@ def test_no_mode_progress_without_a_hold():
     assert not has_color(idle, MODE_COLORS["MEDIA"])
 
 
-@pytest.mark.parametrize("next_mode", ["MOUSE", "PRESENTATION", "MEDIA", "FANTASY"])
+def test_swap_mode_label_is_drawn_in_its_color():
+    assert MODE_COLORS["SWAP"] == (255, 128, 0)
+    status = HudStatus(mode="SWAP", state="ARMED", pose="OPEN_PALM", fps=30.0, p50_ms=20.0, p95_ms=30.0)
+    assert has_color(HUDVisualizer().draw(blank(), None, status), MODE_COLORS["SWAP"])
+
+
+@pytest.mark.parametrize("next_mode", ["MOUSE", "SWAP", "MEDIA", "FANTASY"])
 def test_mode_progress_is_drawn_in_the_next_modes_color_inside_the_panel(next_mode):
     image = HUDVisualizer().draw(blank(), None, switching(0.5, next_mode))
     assert has_color(image, MODE_COLORS[next_mode])

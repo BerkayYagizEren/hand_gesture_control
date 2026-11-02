@@ -3,7 +3,7 @@
 Capture runs on `CameraStream`'s thread and hands over only the newest frame. All
 other work stays on the main thread, because macOS requires it for OpenCV windows.
 
-    .venv/bin/python -m src.main --mode presentation
+    .venv/bin/python -m src.main --mode swap
     .venv/bin/python -m src.main --mode fantasy
     .venv/bin/python -m src.main --replay records/session.jsonl --headless
 
@@ -31,8 +31,8 @@ import numpy as np
 from src.camera.stream import CameraError, CameraStream
 from src.controller.base import BaseMouseController, MockMouseController
 from src.controller.media import BaseMediaController, MockMediaController, QuartzMediaController
-from src.controller.presentation import PresentationController
 from src.controller.scroll import ScrollController
+from src.controller.swap import SwapController
 from src.fantasy.mode import FantasyMode
 from src.fantasy.sound import AfplayAudioPlayer, BaseSoundPlayer, MockSoundPlayer
 from src.tracking.cursor_controller import CursorController
@@ -57,13 +57,19 @@ POSE_ACTION_COOLDOWN = 1.0  # A held pose that tracking drops and regains must n
 MODE_SWITCH_HOLD = 0.5
 KEY_ESC = 27
 KEY_NONE = 255
+LEGACY_SWAP_MODE = "presentation"
 
 
 class AppMode(Enum):
     MOUSE = "mouse"
-    PRESENTATION = "presentation"
+    SWAP = "swap"
     MEDIA = "media"
     FANTASY = "fantasy"
+
+    @classmethod
+    def _missing_(cls, value: object) -> AppMode | None:
+        # SWAP replaced this mode, and existing launch commands still name it.
+        return cls.SWAP if value == LEGACY_SWAP_MODE else None
 
 
 class Action(NamedTuple):
@@ -315,7 +321,7 @@ class GestureControlApp:
         source: FrameSource,
         mouse: BaseMouseController,
         media: BaseMediaController,
-        presentation: PresentationController,
+        swap: SwapController,
         mode: AppMode = AppMode.MOUSE,
         window: Window | None = None,
         record_path: str | Path | None = None,
@@ -324,7 +330,7 @@ class GestureControlApp:
         self.source = source
         self.mouse = mouse
         self.media = media
-        self.presentation = presentation
+        self.swap = swap
         self.mode = mode
         self.window = window
         self.summary = SessionSummary()
@@ -337,11 +343,12 @@ class GestureControlApp:
         )
         self._fantasy = FantasyMode(self.fsm.classifier, sound_player=sound_player)
         self._swipe_modes = {
-            AppMode.PRESENTATION: SwipeActionMode(
+            AppMode.SWAP: SwipeActionMode(
                 self.fsm.classifier,
                 {
-                    SwipeDirection.RIGHT: Action("next_slide", presentation.next_slide),
-                    SwipeDirection.LEFT: Action("previous_slide", presentation.previous_slide),
+                    SwipeDirection.RIGHT: Action("next_space", swap.next_space),
+                    SwipeDirection.LEFT: Action("previous_space", swap.previous_space),
+                    SwipeDirection.UP: Action("mission_control", swap.mission_control),
                 },
             ),
             AppMode.MEDIA: SwipeActionMode(
@@ -553,7 +560,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="play a recording without a camera, against mock controllers",
     )
     parser.add_argument(
-        "--mode", choices=[mode.value for mode in AppMode], default=AppMode.MOUSE.value
+        "--mode",
+        choices=[*(mode.value for mode in AppMode), LEGACY_SWAP_MODE],
+        default=AppMode.MOUSE.value,
     )
     parser.add_argument("--camera-id", type=int, default=0, metavar="INT", help="camera index")
     parser.add_argument("--no-sound", action="store_true", help="mute the FANTASY mode effects")
@@ -573,7 +582,7 @@ def build_app(args: argparse.Namespace) -> GestureControlApp:
         source = replay = ReplaySource(args.replay, realtime=not args.headless)
         mouse: BaseMouseController = MockMouseController(clock=lambda: replay.now)
         media: BaseMediaController = MockMediaController()
-        presentation = PresentationController(post_event=lambda _event: None)
+        swap = SwapController(post_event=lambda _event: None)
     else:
         # Imported only here, because Quartz loads AppKit and replay must not need either.
         from src.controller.quartz_mouse import QuartzMouseController, check_accessibility_permission
@@ -585,12 +594,12 @@ def build_app(args: argparse.Namespace) -> GestureControlApp:
         )
         mouse = QuartzMouseController()
         media = QuartzMediaController()
-        presentation = PresentationController()
+        swap = SwapController()
     return GestureControlApp(
         source,
         mouse,
         media,
-        presentation,
+        swap,
         mode=AppMode(args.mode),
         window=None if args.headless else OpenCvWindow(),
         record_path=args.record,

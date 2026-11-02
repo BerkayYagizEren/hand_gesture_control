@@ -50,7 +50,7 @@ COLOR_FROZEN = (235, 190, 70)
 MODE_COLORS = {
     "MOUSE": (120, 220, 110),
     "SCROLL": (235, 190, 70),
-    "PRESENTATION": (70, 170, 255),
+    "SWAP": (255, 128, 0),
     "MEDIA": (225, 120, 215),
     "FANTASY": (255, 229, 0),  # Chakra blue, #00E5FF.
 }

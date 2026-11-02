@@ -13,7 +13,7 @@ import pytest
 from hand_factory import POSES, make_hand
 from src.controller.base import MockMouseController, Point
 from src.controller.media import MockMediaController
-from src.controller.presentation import PresentationController
+from src.controller.swap import SwapController
 from src.fantasy import sound
 from src.fantasy.engine import FantasyConfig, FantasyPhase
 from src.fantasy.mode import FantasyMode
@@ -573,7 +573,7 @@ def make_app(source=None, mode=AppMode.FANTASY, sound_player=None):
         source if source is not None else ListSource(),
         MockMouseController(start=Point(960, 540)),
         MockMediaController(),
-        PresentationController(post_event=lambda _event: None),
+        SwapController(post_event=lambda _event: None),
         mode=mode,
         sound_player=sound_player,
     )

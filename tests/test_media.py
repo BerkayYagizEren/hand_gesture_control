@@ -1,5 +1,4 @@
 import pytest
-import Quartz
 from AppKit import NSEvent, NSEventTypeSystemDefined
 
 from src.controller.media import (
@@ -8,7 +7,6 @@ from src.controller.media import (
     MockMediaController,
     QuartzMediaController,
 )
-from src.controller.presentation import PresentationController
 
 ACTIONS = [
     ("volume_up", MediaKey.VOLUME_UP, 0),
@@ -57,24 +55,3 @@ def test_media_key_release_is_attempted_when_the_press_fails():
         QuartzMediaController(post_event=post).mute()
     assert len(post.posted) == 2
     assert NSEvent.eventWithCGEvent_(post.posted[1]).data1() == (7 << 16) | (0xB << 8)
-
-
-@pytest.mark.parametrize(
-    "method, key_code", [("next_slide", 124), ("previous_slide", 123)]
-)
-def test_presentation_taps_the_arrow_key(method, key_code):
-    posted = []
-    getattr(PresentationController(post_event=posted.append), method)()
-    assert [Quartz.CGEventGetType(event) for event in posted] == [
-        Quartz.kCGEventKeyDown,
-        Quartz.kCGEventKeyUp,
-    ]
-    for event in posted:
-        assert Quartz.CGEventGetIntegerValueField(event, Quartz.kCGKeyboardEventKeycode) == key_code
-
-
-def test_presentation_key_up_is_attempted_when_key_down_fails():
-    post = FailingPost()
-    with pytest.raises(OSError):
-        PresentationController(post_event=post).next_slide()
-    assert Quartz.CGEventGetType(post.posted[1]) == Quartz.kCGEventKeyUp

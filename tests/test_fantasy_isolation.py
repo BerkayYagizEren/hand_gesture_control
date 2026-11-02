@@ -12,8 +12,8 @@ import pytest
 from hand_factory import POSES, make_hand
 from src.controller.base import MockMouseController, MouseButton, Point
 from src.controller.media import MockMediaController, QuartzMediaController
-from src.controller.presentation import PresentationController
 from src.controller.quartz_mouse import QuartzMouseController
+from src.controller.swap import SwapController
 from src.fantasy.mode import FantasyMode
 from src.main import AppMode, GestureControlApp, ReplaySource, Tick, build_parser
 from src.tracking.state_machine import GestureState
@@ -117,7 +117,7 @@ def mock_app(source, mode=AppMode.FANTASY, window=None):
         source,
         MockMouseController(start=Point(960, 540)),
         MockMediaController(),
-        PresentationController(post_event=posted.append),
+        SwapController(post_event=posted.append),
         mode=mode,
         window=window,
     )
@@ -158,7 +158,7 @@ def test_real_drivers_post_nothing_in_fantasy_mode():
         ListSource(session_ticks()),
         QuartzMouseController(post_event=posted.append),
         QuartzMediaController(post_event=posted.append),
-        PresentationController(post_event=posted.append),
+        SwapController(post_event=posted.append),
         mode=AppMode.FANTASY,
     )
     app.run()
@@ -292,7 +292,7 @@ def test_cli_accepts_the_fantasy_mode():
 
 
 def test_cycle_order():
-    assert list(AppMode) == [AppMode.MOUSE, AppMode.PRESENTATION, AppMode.MEDIA, AppMode.FANTASY]
+    assert list(AppMode) == [AppMode.MOUSE, AppMode.SWAP, AppMode.MEDIA, AppMode.FANTASY]
 
 
 def test_fantasy_is_routed_like_the_modes_that_bypass_the_mouse():

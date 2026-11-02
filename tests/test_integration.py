@@ -13,7 +13,7 @@ from hand_factory import POSES, make_hand
 from src.camera.stream import CameraError, Frame
 from src.controller.base import MockMouseController, MouseButton, MouseEventType, Point
 from src.controller.media import MediaKey, MockMediaController
-from src.controller.presentation import PresentationController
+from src.controller.swap import SwapController
 from src.main import (
     KEY_ESC,
     KEY_NONE,
@@ -130,7 +130,7 @@ def make_app(source, mode=AppMode.MOUSE, window=None, record_path=None):
         source,
         MockMouseController(start=Point(960, 540)),
         MockMediaController(),
-        PresentationController(post_event=SentEvents()),
+        SwapController(post_event=SentEvents()),
         mode=mode,
         window=window,
         record_path=record_path,
@@ -229,7 +229,7 @@ def test_hand_loss_during_pinch_releases_within_the_timeout():
     assert released_at == [3 + 8 + 7]
 
 
-# Presentation mode
+# Swap mode
 
 
 def swipe_session(direction=1):
@@ -239,22 +239,22 @@ def swipe_session(direction=1):
     return Script().hold("OPEN_PALM", 12, *start).move("OPEN_PALM", 8, start, stop)
 
 
-def test_presentation_replay_swipes_change_slides(tmp_path):
+def test_swap_replay_swipes_change_spaces(tmp_path):
     script = swipe_session(1).hold("OPEN_PALM", 30, 0.7, 0.5).move(
         "OPEN_PALM", 8, (0.7, 0.5), (0.3, 0.5)
     )
-    app = replay_app(script.save(tmp_path / "slides.jsonl"), AppMode.PRESENTATION)
+    app = replay_app(script.save(tmp_path / "spaces.jsonl"), AppMode.SWAP)
     summary = app.run()
-    assert summary.actions == {"next_slide": 1, "previous_slide": 1}
+    assert summary.actions == {"next_space": 1, "previous_space": 1}
     assert {"DISARMED", "ARMED", "COOLDOWN"} <= summary.states_seen
     # A tap is a key down and a key up.
-    assert len(app.presentation._post_event.events) == 4
+    assert len(app.swap._post_event.events) == 4
     assert app.mouse.events == []
 
 
-def test_presentation_mode_ignores_pinches(tmp_path):
+def test_swap_mode_ignores_pinches(tmp_path):
     path = Script().hold("POINTING", 3).hold("PINCH", 20).save(tmp_path / "pinch.jsonl")
-    app = replay_app(path, AppMode.PRESENTATION)
+    app = replay_app(path, AppMode.SWAP)
     app.run()
     assert app.mouse.events == []
     assert app.summary.actions == {}
@@ -292,12 +292,20 @@ def test_media_volume_return_movement_does_not_fire_the_opposite_action():
     assert make_app(ListSource(script.ticks()), AppMode.MEDIA).run().actions == {"volume_up": 1}
 
 
-def test_presentation_ignores_vertical_swipes():
-    up, down = (0.5, 0.7), (0.5, 0.3)
-    script = Script().hold("OPEN_PALM", 12, *up).move("OPEN_PALM", 8, up, down)
-    app = make_app(ListSource(script.ticks()), AppMode.PRESENTATION)
+def test_swap_swipe_up_opens_mission_control():
+    below, above = (0.5, 0.7), (0.5, 0.3)
+    script = Script().hold("OPEN_PALM", 12, *below).move("OPEN_PALM", 8, below, above)
+    app = make_app(ListSource(script.ticks()), AppMode.SWAP)
+    assert app.run().actions == {"mission_control": 1}
+    assert len(app.swap._post_event.events) == 2
+
+
+def test_swap_ignores_downward_swipes():
+    above, below = (0.5, 0.3), (0.5, 0.7)
+    script = Script().hold("OPEN_PALM", 12, *above).move("OPEN_PALM", 8, above, below)
+    app = make_app(ListSource(script.ticks()), AppMode.SWAP)
     assert app.run().actions == {}
-    assert app.presentation._post_event.events == []
+    assert app.swap._post_event.events == []
 
 
 def test_media_thumbs_up_toggles_play_pause_once_per_gesture(tmp_path):
@@ -348,7 +356,7 @@ def test_m_key_cycles_through_the_modes():
 
     app.set_mode = spy
     app.run()
-    assert seen == [AppMode.PRESENTATION, AppMode.MEDIA, AppMode.FANTASY, AppMode.MOUSE]
+    assert seen == [AppMode.SWAP, AppMode.MEDIA, AppMode.FANTASY, AppMode.MOUSE]
 
 
 # Three finger mode switching
@@ -363,8 +371,8 @@ def run_session(script, mode=AppMode.MOUSE):
 @pytest.mark.parametrize(
     "start, expected",
     [
-        (AppMode.MOUSE, AppMode.PRESENTATION),
-        (AppMode.PRESENTATION, AppMode.MEDIA),
+        (AppMode.MOUSE, AppMode.SWAP),
+        (AppMode.SWAP, AppMode.MEDIA),
         (AppMode.MEDIA, AppMode.FANTASY),
         (AppMode.FANTASY, AppMode.MOUSE),
     ],
@@ -376,12 +384,12 @@ def test_three_finger_hold_moves_to_the_next_mode(start, expected):
 def test_three_finger_hold_fires_at_half_a_second_not_before():
     # The vote needs 3 frames, then 16 frames of 33 ms are the first to reach 500 ms.
     assert run_session(Script().hold("THREE_FINGER", 18)).mode is AppMode.MOUSE
-    assert run_session(Script().hold("THREE_FINGER", 19)).mode is AppMode.PRESENTATION
+    assert run_session(Script().hold("THREE_FINGER", 19)).mode is AppMode.SWAP
 
 
 def test_long_three_finger_hold_is_a_single_switch():
     # Across the switch's reset of the mode's own vote, the latch must not let go.
-    assert run_session(Script().hold("THREE_FINGER", 120)).mode is AppMode.PRESENTATION
+    assert run_session(Script().hold("THREE_FINGER", 120)).mode is AppMode.SWAP
 
 
 def test_leaving_the_pose_allows_the_next_switch():
@@ -398,7 +406,7 @@ def test_leaving_the_pose_early_cancels_the_hold():
 
 def test_a_one_frame_glitch_does_not_cancel_the_hold():
     script = Script().hold("THREE_FINGER", 12).hand("FIST").hold("THREE_FINGER", 10)
-    assert run_session(script).mode is AppMode.PRESENTATION
+    assert run_session(script).mode is AppMode.SWAP
 
 
 def test_hand_loss_cancels_the_hold():
@@ -408,7 +416,7 @@ def test_hand_loss_cancels_the_hold():
 
 def test_tracking_dropout_during_a_latched_hold_does_not_switch_again():
     script = Script().hold("THREE_FINGER", 25).no_hand(8).hold("THREE_FINGER", 25)
-    assert run_session(script).mode is AppMode.PRESENTATION
+    assert run_session(script).mode is AppMode.SWAP
 
 
 def test_hand_returning_after_a_real_absence_can_switch_again():
@@ -428,7 +436,7 @@ def test_mode_switch_fires_no_action_and_presses_nothing():
         app = run_session(Script().hold("THREE_FINGER", 25), mode)
         assert app.summary.actions == {}
         assert app.media.events == []
-        assert app.presentation._post_event.events == []
+        assert app.swap._post_event.events == []
         assert app.mouse.held_buttons == frozenset()
 
 
@@ -440,7 +448,7 @@ def test_new_mode_works_right_after_the_switch():
         .hold("OPEN_PALM", 12, *start)
         .move("OPEN_PALM", 8, start, stop)
     )
-    app = run_session(script, AppMode.PRESENTATION)
+    app = run_session(script, AppMode.SWAP)
     assert app.mode is AppMode.MEDIA
     assert app.summary.actions == {"next_track": 1}
 
@@ -449,9 +457,9 @@ def test_m_key_during_a_hold_restarts_it():
     script = Script().hold("THREE_FINGER", 15).hold("THREE_FINGER", 10)
     source = ListSource(script.ticks())
     app = make_app(source)
-    source.before[15] = lambda: app.set_mode(AppMode.PRESENTATION)
+    source.before[15] = lambda: app.set_mode(AppMode.SWAP)
     app.run()
-    assert app.mode is AppMode.PRESENTATION
+    assert app.mode is AppMode.SWAP
 
 
 def test_mode_switch_replays_from_a_recording(tmp_path):
@@ -463,7 +471,7 @@ def test_mode_switch_replays_from_a_recording(tmp_path):
 
 def test_hud_status_reports_mode_switch_progress():
     script = Script().hold("THREE_FINGER", 25)
-    app = make_app(ListSource(script.ticks()), AppMode.PRESENTATION)
+    app = make_app(ListSource(script.ticks()), AppMode.SWAP)
     progress = []
     for tick in script.ticks():
         app._apply_gestures(tick)
@@ -685,7 +693,7 @@ def test_window_receives_hud_frames_with_panel(tmp_path):
     [
         (Script().hold("TWO_FINGER", 8), AppMode.MOUSE, ("SCROLL", "SCROLL_ACTIVE", "TWO_FINGER")),
         (Script().hold("POINTING", 8), AppMode.MOUSE, ("MOUSE", "TRACKING", "POINTING")),
-        (Script().hold("OPEN_PALM", 8), AppMode.PRESENTATION, ("PRESENTATION", "ARMED", "OPEN_PALM")),
+        (Script().hold("OPEN_PALM", 8), AppMode.SWAP, ("SWAP", "ARMED", "OPEN_PALM")),
         (Script().hold("OPEN_PALM", 2), AppMode.MEDIA, ("MEDIA", "DISARMED", "UNKNOWN")),
         (Script().hold("FIST", 8), AppMode.FANTASY, ("FANTASY", "CHARGING", "FIST")),
     ],
@@ -771,7 +779,13 @@ def test_parser_rejects_bad_arguments(argv):
 
 def test_main_replays_headless_and_returns_zero(tmp_path):
     path = swipe_session().save(tmp_path / "cli.jsonl")
+    assert main(["--replay", str(path), "--headless", "--mode", "swap"]) == 0
+
+
+def test_main_accepts_presentation_as_an_alias_of_swap(tmp_path):
+    path = swipe_session().save(tmp_path / "cli.jsonl")
     assert main(["--replay", str(path), "--headless", "--mode", "presentation"]) == 0
+    assert AppMode("presentation") is AppMode.SWAP
 
 
 def test_main_reports_a_missing_recording(tmp_path):
